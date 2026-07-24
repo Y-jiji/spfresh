@@ -224,6 +224,7 @@ int main(int argc, char **argv) {
     index->SetParameter("UseKV", "true", "BuildSSDIndex");
     index->SetParameter("KVPath", (index_dir + "/rocksdb").c_str(), "BuildSSDIndex");
     index->SetParameter("MergeThreshold", "10", "BuildSSDIndex");
+    index->SetParameter("Update", "true", "BuildSSDIndex");
     index->SetParameter("LatencyLimit", "10.0", "BuildSSDIndex");
     index->SetParameter("BufferLength", "6", "BuildSSDIndex");
     index->SetParameter("InsertThreadNum", std::to_string(nthreads).c_str(), "BuildSSDIndex");
