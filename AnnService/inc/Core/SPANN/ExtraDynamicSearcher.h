@@ -13,7 +13,9 @@
 #include "inc/Core/Common/FineGrainedLock.h"
 #include "PersistentBuffer.h"
 #include "inc/Core/Common/PostingSizeRecord.h"
+#ifdef SPDK
 #include "ExtraSPDKController.h"
+#endif
 #include <chrono>
 #include <map>
 #include <cmath>
@@ -162,8 +164,13 @@ namespace SPTAG::SPANN {
     public:
         ExtraDynamicSearcher(const char* dbPath, int dim, int postingBlockLimit, bool useDirectIO, float searchLatencyHardLimit, int mergeThreshold, bool useSPDK = false, int batchSize = 64, int bufferLength = 3) {
             if (useSPDK) {
+#ifdef SPDK
                 db.reset(new SPDKIO(dbPath, 1024 * 1024, MaxSize, postingBlockLimit + bufferLength, 1024, batchSize));
                 m_postingSizeLimit = postingBlockLimit * PageSize / (sizeof(ValueType) * dim + sizeof(int) + sizeof(uint8_t));
+#else
+                LOG(Helper::LogLevel::LL_Error, "Built without SPDK support (cmake -DSPDK=ON to enable); UseSPDK=true is unavailable.\n");
+                exit(1);
+#endif
             } else {
 #ifdef ROCKSDB
                 db.reset(new RocksDBIO(dbPath, useDirectIO));

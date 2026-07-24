@@ -18,10 +18,16 @@
 #include <map>
 #include <cmath>
 #include <climits>
+#include <cstddef>
 #include <future>
 
 namespace SPTAG::SPANN
 {
+    // RSS/cache budget knob: RocksDB's block cache is the dominant resident
+    // memory consumer for the KV (non-SPDK) backend. Tune this to hit a
+    // target RSS (e.g. ~10GB) independent of corpus size.
+    constexpr std::size_t kBlockCacheBytes = 3UL << 30;
+
     class RocksDBIO : public Helper::KeyValueIO
     {
         class AnnMergeOperator : public rocksdb::MergeOperator
@@ -115,7 +121,7 @@ namespace SPTAG::SPANN
                 // block cache options
                 rocksdb::BlockBasedTableOptions table_options;
                 // table_options.block_cache = rocksdb::NewSimCache(rocksdb::NewLRUCache(1UL << 30), (8UL << 30), -1);
-                table_options.block_cache = rocksdb::NewLRUCache(3UL << 30);
+                table_options.block_cache = rocksdb::NewLRUCache(kBlockCacheBytes);
                 // table_options.no_block_cache = true;
 
                 // filter options

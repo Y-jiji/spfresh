@@ -3,23 +3,28 @@
 
 set(AnnService ${PROJECT_SOURCE_DIR}/AnnService)
 set(Zstd ${PROJECT_SOURCE_DIR}/ThirdParty/zstd)
-set(Spdk ${PROJECT_SOURCE_DIR}/ThirdParty/spdk/build)
-set(Dpdk ${PROJECT_SOURCE_DIR}/ThirdParty/spdk/dpdk/build)
-set(IsalLCrypto ${PROJECT_SOURCE_DIR}/ThirdParty/isal-l_crypto/.libs/libisal_crypto.a)
-set(SpdkLibPrefix ${Spdk}/lib/libspdk_)
-set(DpdkLibPrefix ${Dpdk}/lib/librte_)
-set(SPDK_LIBRARIES -Wl,--whole-archive ${SpdkLibPrefix}bdev_nvme.a ${SpdkLibPrefix}bdev.a ${SpdkLibPrefix}nvme.a ${SpdkLibPrefix}vfio_user.a ${SpdkLibPrefix}sock.a ${SpdkLibPrefix}dma.a ${SpdkLibPrefix}notify.a ${SpdkLibPrefix}accel.a ${SpdkLibPrefix}event_bdev.a ${SpdkLibPrefix}event_accel.a ${SpdkLibPrefix}vmd.a ${SpdkLibPrefix}event_vmd.a ${SpdkLibPrefix}event_sock.a ${SpdkLibPrefix}event_iobuf.a ${SpdkLibPrefix}event.a ${SpdkLibPrefix}env_dpdk.a ${SpdkLibPrefix}log.a ${SpdkLibPrefix}thread.a ${SpdkLibPrefix}rpc.a ${SpdkLibPrefix}init.a ${SpdkLibPrefix}jsonrpc.a ${SpdkLibPrefix}json.a ${SpdkLibPrefix}trace.a ${SpdkLibPrefix}util.a ${DpdkLibPrefix}mempool.a ${DpdkLibPrefix}mempool_ring.a ${DpdkLibPrefix}eal.a ${DpdkLibPrefix}ring.a ${DpdkLibPrefix}telemetry.a ${DpdkLibPrefix}bus_pci.a ${DpdkLibPrefix}kvargs.a ${DpdkLibPrefix}pci.a -Wl,--no-whole-archive dl rt isal ${IsalLCrypto} uuid)
+
+if (SPDK)
+    set(Spdk ${PROJECT_SOURCE_DIR}/ThirdParty/spdk/build)
+    set(Dpdk ${PROJECT_SOURCE_DIR}/ThirdParty/spdk/dpdk/build)
+    set(IsalLCrypto ${PROJECT_SOURCE_DIR}/ThirdParty/isal-l_crypto/.libs/libisal_crypto.a)
+    set(SpdkLibPrefix ${Spdk}/lib/libspdk_)
+    set(DpdkLibPrefix ${Dpdk}/lib/librte_)
+    set(SPDK_LIBRARIES -Wl,--whole-archive ${SpdkLibPrefix}bdev_nvme.a ${SpdkLibPrefix}bdev.a ${SpdkLibPrefix}nvme.a ${SpdkLibPrefix}vfio_user.a ${SpdkLibPrefix}sock.a ${SpdkLibPrefix}dma.a ${SpdkLibPrefix}notify.a ${SpdkLibPrefix}accel.a ${SpdkLibPrefix}event_bdev.a ${SpdkLibPrefix}event_accel.a ${SpdkLibPrefix}vmd.a ${SpdkLibPrefix}event_vmd.a ${SpdkLibPrefix}event_sock.a ${SpdkLibPrefix}event_iobuf.a ${SpdkLibPrefix}event.a ${SpdkLibPrefix}env_dpdk.a ${SpdkLibPrefix}log.a ${SpdkLibPrefix}thread.a ${SpdkLibPrefix}rpc.a ${SpdkLibPrefix}init.a ${SpdkLibPrefix}jsonrpc.a ${SpdkLibPrefix}json.a ${SpdkLibPrefix}trace.a ${SpdkLibPrefix}util.a ${DpdkLibPrefix}mempool.a ${DpdkLibPrefix}mempool_ring.a ${DpdkLibPrefix}eal.a ${DpdkLibPrefix}ring.a ${DpdkLibPrefix}telemetry.a ${DpdkLibPrefix}bus_pci.a ${DpdkLibPrefix}kvargs.a ${DpdkLibPrefix}pci.a -Wl,--no-whole-archive dl rt isal ${IsalLCrypto} uuid)
+    include_directories(${Spdk}/include)
+else()
+    set(SPDK_LIBRARIES "")
+endif()
 
 include_directories(${AnnService})
 include_directories(${Zstd}/lib)
-include_directories(${Spdk}/include)
 
 file(GLOB_RECURSE HDR_FILES ${AnnService}/inc/Core/*.h  ${AnnService}/inc/Helper/*.h)
 file(GLOB_RECURSE SRC_FILES ${AnnService}/src/Core/*.cpp ${AnnService}/src/Helper/*.cpp)
 
 list(REMOVE_ITEM HDR_FILES
     ${AnnService}/inc/Core/Common/DistanceUtils.h
-    ${AnnService}/inc/Core/Common/SIMDUtils.h 
+    ${AnnService}/inc/Core/Common/SIMDUtils.h
     ${AnnService}/inc/Core/Common/InstructionUtils.h
     ${AnnService}/inc/Core/Common/CommonUtils.h
     )
@@ -29,6 +34,13 @@ list(REMOVE_ITEM SRC_FILES
     ${AnnService}/src/Core/Common/SIMDUtils.cpp
     ${AnnService}/src/Core/Common/InstructionUtils.cpp
     )
+
+# ExtraSPDKController.{h,cpp} unconditionally include spdk/*.h; only build it
+# when SPDK support (and thus ThirdParty/spdk) is actually present.
+if (NOT SPDK)
+    list(REMOVE_ITEM HDR_FILES ${AnnService}/inc/Core/SPANN/ExtraSPDKController.h)
+    list(REMOVE_ITEM SRC_FILES ${AnnService}/src/Core/SPANN/ExtraSPDKController.cpp)
+endif()
 
 add_library (DistanceUtils STATIC 
     inc/Core/Common/DistanceUtils.h 
@@ -127,6 +139,13 @@ target_link_libraries(usefultool SPTAGLibStatic ${Boost_LIBRARIES} ${RocksDB_LIB
 target_compile_definitions(ssdserving PRIVATE _exe)
 target_compile_definitions(spfresh PRIVATE _exe)
 target_compile_definitions(usefultool PRIVATE _exe)
+
+# fnct-db evaluation harness: one disposable binary per dataset (sift/deep/
+# spacev), see AnnService/src/BenchLoop for the two-phase bench protocol.
+foreach(bl_dataset sift deep spacev)
+    add_executable(benchloop_${bl_dataset} ${AnnService}/src/BenchLoop/bench_loop_${bl_dataset}.cpp)
+    target_link_libraries(benchloop_${bl_dataset} SPTAGLibStatic ${Boost_LIBRARIES} ${RocksDB_LIBRARIES})
+endforeach()
 
 # for Test
 add_library(ssdservingLib ${SSD_SERVING_HDR_FILES} ${SSD_SERVING_FILES})
