@@ -15,9 +15,11 @@
 //
 // Phase 2 (BASE -> N): each BATCH-point step runs one concurrent insert+
 // search step (undersampled, rate=MIXRATE, the only undersampled rows) for
-// PRIMARY_CFG against a fixed held-out query set, then a fully-logged
-// extra_search_cfgs() sweep at the same just-reached corpus size. Recall is
-// computed post-hoc against fnct-db's gt_sift.rs log by joining on id/dist.
+// PRIMARY_CFG against a fixed held-out query set, then one fully-logged
+// (rate=1) recall-verification search call using that same PRIMARY_CFG --
+// the mix step's own search rows are undersampled and too sparse to compute
+// recall@10 from reliably. Recall is computed post-hoc against fnct-db's
+// gt_*.rs log by joining on id/dist.
 //
 // Two output files: <out_prefix>records.csv (search rows, column-compatible
 // with pipeann's bench_loop.cpp QueryRow schema) and <out_prefix>inserts.csv
@@ -65,9 +67,6 @@ constexpr int MIXRATE = 50;
 
 struct SearchCfg { int k; int internalResultNum; };
 constexpr SearchCfg PRIMARY_CFG{TOPK, 64};
-std::vector<SearchCfg> extra_search_cfgs() {
-    return {{TOPK, 32}, {TOPK, 96}, {TOPK, 128}, {TOPK, 192}};
-}
 
 int threads() {
     unsigned hw = std::thread::hardware_concurrency();
@@ -275,9 +274,10 @@ int main(int argc, char **argv) {
         run_search_sweep(search_of, search_mtx, index, queries, PRIMARY_CFG, batch_id, t0, nthreads, MIXRATE);
         ins_th.join();
 
-        for (auto &sc : extra_search_cfgs()) {
-            run_search_sweep(search_of, search_mtx, index, queries, sc, batch_id, t0, nthreads, 1);
-        }
+        // Recall-verification search: same PRIMARY_CFG as the mix step
+        // above, but unsampled (rate=1) -- the mix step's own search rows
+        // are undersampled and too sparse to compute recall@10 from.
+        run_search_sweep(search_of, search_mtx, index, queries, PRIMARY_CFG, batch_id, t0, nthreads, 1);
         batch_id++;
         std::cerr << "[phase2 batch " << batch_id << "] reached " << (off + bsz) << "\n";
     }
