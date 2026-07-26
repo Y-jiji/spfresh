@@ -23,10 +23,13 @@
 //
 // Two output files: <out_prefix>records.csv (search rows, column-compatible
 // with pipeann's bench_loop.cpp QueryRow schema) and <out_prefix>inserts.csv
-// (insert rows: SPFresh's AddIndexSPFresh only enqueues to an in-memory
-// persistent buffer + version map -- actual disk IO happens later on
-// background merge/reassign threads decoupled from the caller, so there is
-// no synchronous per-insert page/IO count to log here, unlike search).
+// (insert rows: `pages`/`out-edges`/`in-edges`/`evictions` come from
+// AddIndexSPFresh's synchronous RNG-selection + posting-append path --
+// SPFresh has no bidirectional edge like Vamana, so out-edges and in-edges
+// are always equal; `evictions` counts appends that pushed a posting past
+// its split threshold, the closest analog to an evicted edge. The
+// background merge/reassign machinery this triggers is genuinely
+// asynchronous and not captured here).
 
 #include "inc/Core/Common.h"
 #include "inc/Core/SPANN/Index.h"
@@ -86,11 +89,13 @@ void load_raw(const std::string &path, std::size_t off, std::size_t count, std::
 void write_search_header(std::ofstream &of, int max_k) {
     of << "batch,visitor,qi,start_ns,lat_ns";
     for (int i = 1; i <= max_k; i++) of << ",id@" << i << ",dist@" << i;
-    of << ",n_ios,n_hops,n_cmps,total_us\n";
+    of << ",loads,hops,visits,total_us\n";
 }
 
+// `pages`, `out-edges`, `in-edges`, `evictions` are insert-only
+// graph-mutation counters from AddIndexSPFresh's own InsertStats.
 void write_insert_header(std::ofstream &of) {
-    of << "batch,idx,vid,start_ns,lat_ns,total_us\n";
+    of << "batch,idx,vid,start_ns,lat_ns,total_us,pages,out-edges,in-edges,evictions\n";
 }
 
 std::string cfgtag(const SearchCfg &c) {
@@ -131,8 +136,8 @@ void run_search_sweep(std::ofstream &of, std::mutex &of_mtx, SPANN::Index<ValueT
                         buf << ',' << r->VID << ',' << r->Dist;
                     } else buf << ",,";
                 }
-                buf << ',' << stats.m_diskIOCount << ',' << stats.m_totalListElementsCount
-                    << ',' << stats.m_exCheck << ',' << (lat_ns / 1000) << '\n';
+                buf << ',' << stats.m_diskIOCount << ',' << stats.m_postingCount
+                    << ',' << stats.m_totalListElementsCount << ',' << (lat_ns / 1000) << '\n';
                 if (++rows % 256 == 0) {
                     std::lock_guard<std::mutex> lk(of_mtx);
                     of << buf.str(); of.flush(); buf.str("");
@@ -161,13 +166,15 @@ void run_insert(std::ofstream &of, std::mutex &of_mtx, SPANN::Index<ValueT> *ind
             std::size_t rows = 0, idx;
             while ((idx = next.fetch_add(1)) < hi) {
                 SizeType vid = 0;
+                SPANN::InsertStats stats;
                 auto ts = clk::now();
                 std::uint64_t start_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(ts - t0).count();
-                index->AddIndexSPFresh(pts.data() + (idx - lo) * DIM, 1, DIM, &vid);
+                index->AddIndexSPFresh(pts.data() + (idx - lo) * DIM, 1, DIM, &vid, &stats);
                 std::uint64_t lat_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(clk::now() - ts).count();
                 if (rate == 1 || (idx % static_cast<std::size_t>(rate)) == 0) {
                     buf << batch << ',' << idx << ',' << vid << ',' << start_ns << ',' << lat_ns
-                        << ',' << (lat_ns / 1000) << '\n';
+                        << ',' << (lat_ns / 1000) << ',' << stats.m_pagesTouched << ',' << stats.m_outEdges
+                        << ',' << stats.m_inEdges << ',' << stats.m_evictions << '\n';
                     rows++;
                 }
                 if (rows >= 256) {

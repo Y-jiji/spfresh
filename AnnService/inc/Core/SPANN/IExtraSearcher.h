@@ -24,6 +24,7 @@ namespace SPTAG {
             SearchStats()
                 : m_check(0),
                 m_exCheck(0),
+                m_postingCount(0),
                 m_totalListElementsCount(0),
                 m_diskIOCount(0),
                 m_diskAccessCount(0),
@@ -41,6 +42,12 @@ namespace SPTAG {
             int m_check;
 
             int m_exCheck;
+
+            // # posting lists (head-index candidates) actually probed/fetched
+            // from disk this search -- the hop/traversal-step analog for
+            // SPFresh's IVF-style search, as opposed to m_totalListElementsCount
+            // (a candidate/comparison count).
+            int m_postingCount;
 
             int m_totalListElementsCount;
 
@@ -73,6 +80,24 @@ namespace SPTAG {
             std::chrono::steady_clock::time_point m_searchRequestTime;
 
             int m_threadID;
+        };
+
+        // Per-insert graph-mutation counters. SPFresh has no bidirectional
+        // edge concept like Vamana -- appending the new point into a
+        // posting list is simultaneously its only "out-edge" and the
+        // posting's only "in-edge", so m_outEdges/m_inEdges are always
+        // equal. m_pagesTouched is the distinct-posting footprint of this
+        // insert's appends, the key page-touch metric. m_evictions counts
+        // appends that pushed a posting past its split threshold, triggering
+        // (async) reorganization -- the closest analog to an evicted edge.
+        struct InsertStats
+        {
+            InsertStats() : m_outEdges(0), m_inEdges(0), m_pagesTouched(0), m_evictions(0) {}
+
+            int m_outEdges;
+            int m_inEdges;
+            int m_pagesTouched;
+            int m_evictions;
         };
 
         struct IndexStats {
@@ -272,7 +297,7 @@ namespace SPTAG {
             virtual void RefineIndex(std::shared_ptr<Helper::VectorSetReader>& p_reader,
                 std::shared_ptr<VectorIndex> p_index) { return; }
             virtual ErrorCode AddIndex(std::shared_ptr<VectorSet>& p_vectorSet,
-                std::shared_ptr<VectorIndex> p_index, SizeType p_begin) { return ErrorCode::Undefined; }
+                std::shared_ptr<VectorIndex> p_index, SizeType p_begin, InsertStats* p_stats = nullptr) { return ErrorCode::Undefined; }
             virtual ErrorCode DeleteIndex(SizeType p_id) { return ErrorCode::Undefined; }
 
             virtual bool AllFinished() { return false; }

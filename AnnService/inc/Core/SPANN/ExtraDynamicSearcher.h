@@ -979,7 +979,7 @@ namespace SPTAG::SPANN {
             return true;
         }
 
-        ErrorCode Append(VectorIndex* p_index, SizeType headID, int appendNum, std::string& appendPosting, int reassignThreshold = 0)
+        ErrorCode Append(VectorIndex* p_index, SizeType headID, int appendNum, std::string& appendPosting, int reassignThreshold = 0, bool* p_split = nullptr)
         {
             auto appendBegin = std::chrono::high_resolution_clock::now();
             if (appendPosting.empty()) {
@@ -1032,6 +1032,7 @@ namespace SPTAG::SPANN {
                 //     GetDBStats();
                 //     exit(1);
                 // }
+                if (p_split != nullptr) *p_split = true;
                 if (!reassignThreshold) SplitAsync(p_index, headID);
                 else Split(p_index, headID, !m_opt->m_disableReassign);
                 // SplitAsync(p_index, headID);
@@ -1201,6 +1202,7 @@ namespace SPTAG::SPANN {
             {
                 p_stats->m_compLatency = compLatency / 1000;
                 p_stats->m_diskReadLatency = readLatency / 1000;
+                p_stats->m_postingCount = (int) p_exWorkSpace->m_postingIDs.size();
                 p_stats->m_totalListElementsCount = listElements;
                 p_stats->m_diskIOCount = diskIO;
                 p_stats->m_diskAccessCount = diskRead / 1024;
@@ -1500,7 +1502,7 @@ namespace SPTAG::SPANN {
         }
 
         ErrorCode AddIndex(std::shared_ptr<VectorSet>& p_vectorSet,
-            std::shared_ptr<VectorIndex> p_index, SizeType begin) override {
+            std::shared_ptr<VectorIndex> p_index, SizeType begin, InsertStats* p_stats = nullptr) override {
 
             for (int v = 0; v < p_vectorSet->Count(); v++) {
                 SizeType VID = begin + v;
@@ -1514,7 +1516,16 @@ namespace SPTAG::SPANN {
                 for (int i = 0; i < replicaCount; i++)
                 {
                     // AppendAsync(selections[i].node, 1, appendPosting_ptr);
-                    Append(p_index.get(), selections[i].node, 1, appendPosting);
+                    bool split = false;
+                    Append(p_index.get(), selections[i].node, 1, appendPosting, 0, &split);
+                    if (p_stats != nullptr && split) {
+                        p_stats->m_evictions += 1;
+                    }
+                }
+                if (p_stats != nullptr) {
+                    p_stats->m_outEdges += replicaCount;
+                    p_stats->m_inEdges += replicaCount;
+                    p_stats->m_pagesTouched += replicaCount;
                 }
             }
             return ErrorCode::Success;

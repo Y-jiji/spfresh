@@ -178,7 +178,8 @@ namespace SPTAG
 
             bool ExitBlockController() { return m_extraSearcher->ExitBlockController(); }
 
-            ErrorCode AddIndexSPFresh(const void *p_data, SizeType p_vectorNum, DimensionType p_dimension, SizeType* VID) {
+            ErrorCode AddIndexSPFresh(const void *p_data, SizeType p_vectorNum, DimensionType p_dimension, SizeType* VID,
+                                      InsertStats* p_stats = nullptr) {
                 if ((!m_options.m_useKV &&!m_options.m_useSPDK) || m_extraSearcher == nullptr) {
                     LOG(Helper::LogLevel::LL_Error, "Only Support KV Extra Update\n");
                     return ErrorCode::Fail;
@@ -218,7 +219,7 @@ namespace SPTAG
                         GetEnumValueType<T>(), p_dimension, p_vectorNum));
                 }
 
-                return m_extraSearcher->AddIndex(vectorSet, m_index, begin);
+                return m_extraSearcher->AddIndex(vectorSet, m_index, begin, p_stats);
             }
         };
     } // namespace SPANN
