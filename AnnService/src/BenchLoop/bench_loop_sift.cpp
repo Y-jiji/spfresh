@@ -56,8 +56,8 @@ using ValueT = std::uint8_t;
 constexpr int DIM = 128;
 constexpr VectorValueType VTYPE = VectorValueType::UInt8;
 
-constexpr std::size_t N = 200'000'000;
-constexpr std::size_t BASE = 100'000'000;
+constexpr std::size_t N = 10'000'000;
+constexpr std::size_t BASE = 5'000'000;
 constexpr std::size_t BATCH = 1'000'000;
 constexpr std::size_t QLEN = 10'000;
 // Bootstrap size: ingested via the classic BuildIndex path before the timed
