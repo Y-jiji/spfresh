@@ -129,7 +129,8 @@ endif()
 
 add_subdirectory (ThirdParty/zstd/build/cmake)
 
+# Test, GPUSupport and Wrappers are dropped: this fork exists only to build
+# fnct-db's bench binaries out of AnnService. GPUSupport needs nvcc, which
+# cannot parse this box's libstdc++, and Wrappers' _SPTAG post-build step
+# copies the SWIG-generated Wrappers/inc/SPTAG.py, which is never present.
 add_subdirectory (AnnService)
-add_subdirectory (Test)
-add_subdirectory (GPUSupport)
-add_subdirectory (Wrappers)
