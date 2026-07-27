@@ -141,11 +141,16 @@ target_compile_definitions(spfresh PRIVATE _exe)
 target_compile_definitions(usefultool PRIVATE _exe)
 
 # fnct-db evaluation harness: one disposable binary per dataset (sift/deep/
-# spacev), see AnnService/src/BenchLoop for the two-phase bench protocol.
-foreach(bl_dataset sift deep spacev)
-    add_executable(benchloop_${bl_dataset} ${AnnService}/src/BenchLoop/bench_loop_${bl_dataset}.cpp)
-    target_link_libraries(benchloop_${bl_dataset} SPTAGLibStatic ${Boost_LIBRARIES} ${RocksDB_LIBRARIES})
-endforeach()
+# spacev). The sources live in fnct-db's evaluation directory alongside
+# PipeANN's and DGAI's, so the three systems' bench code can be read side by
+# side; ${EVALDIR} is set by evaluation/CMakeLists.txt.
+if(EVALDIR)
+    foreach(bl_dataset sift deep spacev)
+        add_executable(spfresh_${bl_dataset} ${EVALDIR}/bench_spfresh_${bl_dataset}.cpp)
+        target_include_directories(spfresh_${bl_dataset} PRIVATE ${EVALDIR})
+        target_link_libraries(spfresh_${bl_dataset} SPTAGLibStatic ${Boost_LIBRARIES} ${RocksDB_LIBRARIES})
+    endforeach()
+endif()
 
 # for Test
 add_library(ssdservingLib ${SSD_SERVING_HDR_FILES} ${SSD_SERVING_FILES})
