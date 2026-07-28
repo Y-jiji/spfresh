@@ -179,6 +179,10 @@ namespace SPTAG::SPANN {
             }
             m_metaDataSize = sizeof(int) + sizeof(uint8_t);
             m_vectorInfoSize = dim * sizeof(ValueType) + m_metaDataSize;
+            // Overflow headroom in vectors, the unit m_postingSizeLimit uses.
+            // Only the SPDK store caps a posting's pages, so only it needs the
+            // bound; RocksDB keeps INT_MAX and behaves exactly as before.
+            if (useSPDK) m_bufferSizeLimit = bufferLength * PageSize / m_vectorInfoSize;
             m_hardLatencyLimit = std::chrono::microseconds((int)searchLatencyHardLimit * 1000);
             m_mergeThreshold = mergeThreshold;
             LOG(Helper::LogLevel::LL_Info, "Posting size limit: %d, search limit: %f, merge threshold: %d\n", m_postingSizeLimit, searchLatencyHardLimit, m_mergeThreshold);
@@ -1014,11 +1018,18 @@ namespace SPTAG::SPANN {
                 if (!p_index->ContainSample(headID)) {
                     goto checkDeleted;
                 }
+                if (m_postingSizes.GetSize(headID) + appendNum > (m_postingSizeLimit + m_bufferSizeLimit)) {
+                    lock.unlock();
+                    if (Split(p_index, headID, !m_opt->m_disableReassign) != ErrorCode::Success) {
+                        LOG(Helper::LogLevel::LL_Error, "Split %d failed!\n", headID);
+                    }
+                    goto checkDeleted;
+                }
                 auto appendIOBegin = std::chrono::high_resolution_clock::now();
                 if (db->Merge(headID, appendPosting) != ErrorCode::Success) {
                     LOG(Helper::LogLevel::LL_Error, "Merge failed! Posting Size:%d, limit: %d\n", m_postingSizes.GetSize(headID), m_postingSizeLimit);
                     GetDBStats();
-                    exit(1);
+                    return ErrorCode::Fail;
                 }
                 auto appendIOEnd = std::chrono::high_resolution_clock::now();
                 appendIOSeconds = std::chrono::duration_cast<std::chrono::microseconds>(appendIOEnd - appendIOBegin).count();
@@ -1609,6 +1620,8 @@ namespace SPTAG::SPANN {
         int m_vectorInfoSize = 0;
 
         int m_postingSizeLimit = INT_MAX;
+
+        int m_bufferSizeLimit = INT_MAX;
 
         std::chrono::microseconds m_hardLatencyLimit = std::chrono::microseconds(2000);
 
