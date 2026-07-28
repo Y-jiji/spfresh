@@ -88,21 +88,10 @@ install(TARGETS SPTAGLib SPTAGLibStatic
   LIBRARY DESTINATION lib)
 
 if (NOT LIBRARYONLY)
-    file(GLOB SERVER_HDR_FILES ${AnnService}/inc/Server/*.h ${AnnService}/inc/Socket/*.h)
-    file(GLOB SERVER_FILES ${AnnService}/src/Server/*.cpp ${AnnService}/src/Socket/*.cpp)
-    add_executable (server ${SERVER_FILES} ${SERVER_HDR_FILES})
-    target_link_libraries(server ${Boost_LIBRARIES} SPTAGLibStatic)
-
-    file(GLOB CLIENT_HDR_FILES ${AnnService}/inc/Client/*.h ${AnnService}/inc/Socket/*.h)
-    file(GLOB CLIENT_FILES ${AnnService}/src/Client/*.cpp ${AnnService}/src/Socket/*.cpp)
-    add_executable (client ${CLIENT_FILES} ${CLIENT_HDR_FILES})
-    target_link_libraries(client ${Boost_LIBRARIES} SPTAGLibStatic)
-
-    file(GLOB AGG_HDR_FILES ${AnnService}/inc/Aggregator/*.h ${AnnService}/inc/Socket/*.h ${AnnService}/inc/Server/QueryParser.h)
-    file(GLOB AGG_FILES ${AnnService}/src/Aggregator/*.cpp ${AnnService}/src/Socket/*.cpp ${AnnService}/src/Server/QueryParser.cpp)
-    add_executable (aggregator ${AGG_FILES} ${AGG_HDR_FILES})
-    target_link_libraries(aggregator ${Boost_LIBRARIES} SPTAGLibStatic)
-
+    # server, client and aggregator are dropped for the same reason as Test and
+    # Wrappers: they are not bench targets, and inc/Socket/Connection.h includes
+    # boost/asio/io_service_strand.hpp, gone since Boost renamed io_service to
+    # io_context. Reviving them means porting the Socket layer, not a build fix.
     file(GLOB BUILDER_FILES ${AnnService}/src/IndexBuilder/*.cpp)
     add_executable (indexbuilder ${BUILDER_FILES})
     target_link_libraries(indexbuilder ${Boost_LIBRARIES} SPTAGLibStatic)
@@ -116,7 +105,7 @@ if (NOT LIBRARYONLY)
     add_executable (quantizer ${QUANTIZER_FILES} ${QUANTIZER_HDR_FILES})
     target_link_libraries(quantizer ${Boost_LIBRARIES} SPTAGLibStatic)
 
-    install(TARGETS server client aggregator indexbuilder indexsearcher quantizer
+    install(TARGETS indexbuilder indexsearcher quantizer
       RUNTIME DESTINATION bin
       ARCHIVE DESTINATION lib
       LIBRARY DESTINATION lib)
