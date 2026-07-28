@@ -102,7 +102,10 @@ else()
     message (FATAL_ERROR "Could no find openmp!")
 endif()
 
-find_package(Boost 1.66 COMPONENTS system thread serialization wserialization regex filesystem)
+# No system component: Boost.System is header-only from 1.69 on, and 1.90 drops
+# the compiled stub that kept it listable here. Asking for it fails the whole
+# find_package even though every other component resolves.
+find_package(Boost 1.66 COMPONENTS thread serialization wserialization regex filesystem)
 if (Boost_FOUND)
     include_directories (${Boost_INCLUDE_DIR})
     link_directories (${Boost_LIBRARY_DIR})
@@ -127,7 +130,12 @@ if (SPDK)
     add_definitions(-DSPDK)
 endif()
 
+# zstd is pinned at a commit whose CMakeLists asks for 2.8.12, below the 3.5
+# floor CMake 4 enforces. Raising the floor for this one subdirectory keeps the
+# patch out of the vendored tree, which is not ours to carry.
+set (CMAKE_POLICY_VERSION_MINIMUM 3.5)
 add_subdirectory (ThirdParty/zstd/build/cmake)
+unset (CMAKE_POLICY_VERSION_MINIMUM)
 
 # Test, GPUSupport and Wrappers are dropped: this fork exists only to build
 # fnct-db's bench binaries out of AnnService. GPUSupport needs nvcc, which
