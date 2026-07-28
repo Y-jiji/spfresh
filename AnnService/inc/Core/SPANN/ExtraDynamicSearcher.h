@@ -1019,6 +1019,7 @@ namespace SPTAG::SPANN {
                     goto checkDeleted;
                 }
                 if (m_postingSizes.GetSize(headID) + appendNum > (m_postingSizeLimit + m_bufferSizeLimit)) {
+                    LOG(Helper::LogLevel::LL_Warning, "Appending to %d would exceed postingsize + buffersize (%d + %d)! Do split now...\n", headID, m_postingSizeLimit, m_bufferSizeLimit);
                     lock.unlock();
                     if (Split(p_index, headID, !m_opt->m_disableReassign) != ErrorCode::Success) {
                         LOG(Helper::LogLevel::LL_Error, "Split %d failed!\n", headID);
