@@ -377,8 +377,15 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType*>& p_data, std:
 // write p_value into p_size blocks start from p_data
 bool SPDKIO::BlockController::WriteBlocks(AddressType* p_data, int p_size, const std::string& p_value) {
     if (m_useMemImpl) {
+        // Clamp the tail page the way the SSD branch below does. Merge appends
+        // a single vector, so p_value is routinely far shorter than one page
+        // and an unclamped copy reads off the end of the string.
+        AddressType totalSize = p_value.size();
         for (int i = 0; i < p_size; i++) {
-            memcpy(m_memBuffer.get() + p_data[i] * PageSize, p_value.data() + i * PageSize, PageSize);
+            AddressType currOffset = (AddressType)i * PageSize;
+            AddressType realSize = (totalSize - currOffset) < PageSize ? (totalSize - currOffset) : PageSize;
+            if (realSize <= 0) break;
+            memcpy(m_memBuffer.get() + p_data[i] * PageSize, p_value.data() + currOffset, realSize);
         }
         return true;
     } else if (m_useSsdImpl) {
