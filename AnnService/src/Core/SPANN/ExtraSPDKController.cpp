@@ -116,6 +116,10 @@ void* SPDKIO::BlockController::InitializeSpdk(void *arg) {
     ctrl->m_ssdSpdkBdevName = spdkBdevName ? spdkBdevName : "";
     const char* spdkIoDepth = getenv(kSpdkIoDepth);
     if (spdkIoDepth) ctrl->m_ssdSpdkIoDepth = atoi(spdkIoDepth);
+    // SpdkIoLoop spins unconditionally, so the reactor owns its core outright.
+    // Without this it always lands on core 0, where a pinned bench worker is.
+    const char* spdkCoreMask = getenv(kSpdkCoreMaskEnv);
+    if (spdkCoreMask) opts.reactor_mask = spdkCoreMask;
 
     int rc;
     rc = spdk_app_start(&opts, &SPTAG::SPANN::SPDKIO::BlockController::SpdkStart, arg);

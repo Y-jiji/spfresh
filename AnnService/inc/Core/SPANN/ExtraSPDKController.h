@@ -38,6 +38,7 @@ namespace SPTAG::SPANN
             static constexpr const char* kSpdkConfEnv = "SPFRESH_SPDK_CONF";
             static constexpr const char* kSpdkBdevNameEnv = "SPFRESH_SPDK_BDEV";
             static constexpr const char* kSpdkIoDepth = "SPFRESH_SPDK_IO_DEPTH";
+            static constexpr const char* kSpdkCoreMaskEnv = "SPFRESH_SPDK_CORE_MASK";
             static constexpr int kSsdSpdkDefaultIoDepth = 1024;
 
             tbb::concurrent_queue<AddressType> m_blockAddresses;
