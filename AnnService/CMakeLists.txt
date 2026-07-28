@@ -12,6 +12,9 @@ if (SPDK)
     set(DpdkLibPrefix ${Dpdk}/lib/librte_)
     set(SPDK_LIBRARIES -Wl,--whole-archive ${SpdkLibPrefix}bdev_nvme.a ${SpdkLibPrefix}bdev.a ${SpdkLibPrefix}nvme.a ${SpdkLibPrefix}vfio_user.a ${SpdkLibPrefix}sock.a ${SpdkLibPrefix}dma.a ${SpdkLibPrefix}notify.a ${SpdkLibPrefix}accel.a ${SpdkLibPrefix}event_bdev.a ${SpdkLibPrefix}event_accel.a ${SpdkLibPrefix}vmd.a ${SpdkLibPrefix}event_vmd.a ${SpdkLibPrefix}event_sock.a ${SpdkLibPrefix}event_iobuf.a ${SpdkLibPrefix}event.a ${SpdkLibPrefix}env_dpdk.a ${SpdkLibPrefix}log.a ${SpdkLibPrefix}thread.a ${SpdkLibPrefix}rpc.a ${SpdkLibPrefix}init.a ${SpdkLibPrefix}jsonrpc.a ${SpdkLibPrefix}json.a ${SpdkLibPrefix}trace.a ${SpdkLibPrefix}util.a ${DpdkLibPrefix}mempool.a ${DpdkLibPrefix}mempool_ring.a ${DpdkLibPrefix}eal.a ${DpdkLibPrefix}ring.a ${DpdkLibPrefix}telemetry.a ${DpdkLibPrefix}bus_pci.a ${DpdkLibPrefix}kvargs.a ${DpdkLibPrefix}pci.a -Wl,--no-whole-archive dl rt isal ${IsalLCrypto} uuid)
     include_directories(${Spdk}/include)
+    # -lisal above resolves to the isa-l SPDK builds inside its own tree and
+    # never installs, so nothing else puts it on the link search path.
+    link_directories(${PROJECT_SOURCE_DIR}/ThirdParty/spdk/isa-l/.libs)
 else()
     set(SPDK_LIBRARIES "")
 endif()
@@ -139,6 +142,15 @@ if(EVALDIR)
         target_include_directories(spfresh_${bl_dataset} PRIVATE ${EVALDIR})
         target_link_libraries(spfresh_${bl_dataset} SPTAGLibStatic ${Boost_LIBRARIES} ${RocksDB_LIBRARIES})
     endforeach()
+    # SPDK-backed twins of the same three, plus a scale-model smoke test that
+    # runs on the in-memory block controller and so needs no NVMe device.
+    if(SPDK)
+        foreach(bl_dataset sift deep spacev smoke)
+            add_executable(spfresh_${bl_dataset}_spdk ${EVALDIR}/bench_spfresh_${bl_dataset}_spdk.cpp)
+            target_include_directories(spfresh_${bl_dataset}_spdk PRIVATE ${EVALDIR})
+            target_link_libraries(spfresh_${bl_dataset}_spdk SPTAGLibStatic ${Boost_LIBRARIES} ${RocksDB_LIBRARIES})
+        endforeach()
+    endif()
 endif()
 
 # for Test
