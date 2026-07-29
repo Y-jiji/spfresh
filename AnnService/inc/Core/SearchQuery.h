@@ -196,12 +196,29 @@ public:
 
     inline void Reset()
     {
+        m_headDists = 0;
         for (int i = 0; i < m_resultNum; i++)
         {
             m_results[i].VID = -1;
             m_results[i].Dist = MaxDist;
             m_results[i].Meta.Clear();
         }
+    }
+
+
+    /// Quantized distances the in-memory head index computed for this query:
+    /// BKT pivots during tree descent plus neighbour-graph leaf checks. Lives
+    /// on the query rather than a thread-local so the whole synchronous call
+    /// tree charges the query that caused it.
+    inline void CountHeadDist()
+    {
+        m_headDists++;
+    }
+
+
+    inline std::uint64_t GetHeadDists() const
+    {
+        return m_headDists;
     }
 
 
@@ -230,6 +247,8 @@ public:
 
 
 protected:
+    std::uint64_t m_headDists = 0;
+
     const void* m_target;
 
     void* m_quantizedTarget;

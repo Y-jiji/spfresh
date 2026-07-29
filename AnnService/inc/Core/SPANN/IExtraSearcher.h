@@ -92,12 +92,18 @@ namespace SPTAG {
         // (async) reorganization -- the closest analog to an evicted edge.
         struct InsertStats
         {
-            InsertStats() : m_outEdges(0), m_inEdges(0), m_pagesTouched(0), m_evictions(0) {}
+            InsertStats() : m_outEdges(0), m_inEdges(0), m_pagesTouched(0), m_evictions(0), m_headDists(0) {}
 
             int m_outEdges;
             int m_inEdges;
             int m_pagesTouched;
             int m_evictions;
+            // Quantized distances the in-memory head index computed while
+            // choosing this insert's postings: the RNGSelection search plus
+            // its RNG dominance checks. Counted on the calling thread's own
+            // synchronous work; background split/reassign work is not
+            // attributable to any single insert and is excluded.
+            int m_headDists;
         };
 
         struct IndexStats {

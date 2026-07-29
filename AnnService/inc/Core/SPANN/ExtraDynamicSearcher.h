@@ -947,10 +947,11 @@ namespace SPTAG::SPANN {
             return ErrorCode::Success;
         }
 
-        bool RNGSelection(std::vector<Edge>& selections, ValueType* queryVector, VectorIndex* p_index, SizeType p_fullID, int& replicaCount, int checkHeadID = -1)
+        bool RNGSelection(std::vector<Edge>& selections, ValueType* queryVector, VectorIndex* p_index, SizeType p_fullID, int& replicaCount, int checkHeadID = -1, InsertStats* p_stats = nullptr)
         {
             QueryResult queryResults(queryVector, m_opt->m_internalResultNum, false);
             p_index->SearchIndex(queryResults);
+            if (p_stats != nullptr) p_stats->m_headDists += (int)queryResults.GetHeadDists();
 
             replicaCount = 0;
             for (int i = 0; i < queryResults.GetResultNum() && replicaCount < m_opt->m_replicaCount; ++i)
@@ -965,6 +966,7 @@ namespace SPTAG::SPANN {
                 {
                     float nnDist = p_index->ComputeDistance(p_index->GetSample(queryResult->VID),
                         p_index->GetSample(selections[j].node));
+                    if (p_stats != nullptr) p_stats->m_headDists++;
                     if (m_opt->m_rngFactor * nnDist <= queryResult->Dist)
                     {
                         rngAccpeted = false;
@@ -1520,7 +1522,7 @@ namespace SPTAG::SPANN {
                 SizeType VID = begin + v;
                 std::vector<Edge> selections(static_cast<size_t>(m_opt->m_replicaCount));
                 int replicaCount;
-                RNGSelection(selections, (ValueType*)(p_vectorSet->GetVector(v)), p_index.get(), VID, replicaCount);
+                RNGSelection(selections, (ValueType*)(p_vectorSet->GetVector(v)), p_index.get(), VID, replicaCount, -1, p_stats);
 
                 uint8_t version = m_versionMap->GetVersion(VID);
                 std::string appendPosting(m_vectorInfoSize, '\0');

@@ -311,6 +311,7 @@ namespace SPTAG
                         break;
                     //IF_NDEBUG(if (nn_index >= m_pSamples.R()) continue; )
                     if (p_space.CheckAndSet(nn_index)) continue;
+                    p_query.CountHeadDist();
                     float distance2leaf = m_fComputeDistance(p_query.GetQuantizedTarget(), (m_pSamples)[nn_index], GetFeatureDim());
                     p_space.m_iNumberOfCheckedLeaves++;
                     if (p_space.m_Results.insert(distance2leaf))
