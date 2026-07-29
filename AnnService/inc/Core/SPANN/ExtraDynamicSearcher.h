@@ -1020,7 +1020,11 @@ namespace SPTAG::SPANN {
                 if (!p_index->ContainSample(headID)) {
                     goto checkDeleted;
                 }
-                if (m_postingSizes.GetSize(headID) + appendNum > (m_postingSizeLimit + m_bufferSizeLimit)) {
+                // Widened: m_bufferSizeLimit is INT_MAX on the RocksDB path, so
+                // summing it with m_postingSizeLimit in int overflows negative
+                // and forces a split on every append.
+                if ((std::int64_t)m_postingSizes.GetSize(headID) + appendNum >
+                    (std::int64_t)m_postingSizeLimit + m_bufferSizeLimit) {
                     LOG(Helper::LogLevel::LL_Warning, "Appending to %d would exceed postingsize + buffersize (%d + %d)! Do split now...\n", headID, m_postingSizeLimit, m_bufferSizeLimit);
                     lock.unlock();
                     if (Split(p_index, headID, !m_opt->m_disableReassign) != ErrorCode::Success) {
