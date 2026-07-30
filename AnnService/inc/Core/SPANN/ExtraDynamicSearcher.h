@@ -985,7 +985,7 @@ namespace SPTAG::SPANN {
             return true;
         }
 
-        ErrorCode Append(VectorIndex* p_index, SizeType headID, int appendNum, std::string& appendPosting, int reassignThreshold = 0, bool* p_split = nullptr)
+        ErrorCode Append(VectorIndex* p_index, SizeType headID, int appendNum, std::string& appendPosting, int reassignThreshold = 0, bool* p_split = nullptr, std::uint64_t* pages = nullptr)
         {
             auto appendBegin = std::chrono::high_resolution_clock::now();
             if (appendPosting.empty()) {
@@ -1033,7 +1033,7 @@ namespace SPTAG::SPANN {
                     goto checkDeleted;
                 }
                 auto appendIOBegin = std::chrono::high_resolution_clock::now();
-                if (db->Merge(headID, appendPosting) != ErrorCode::Success) {
+                if (db->Merge(headID, appendPosting, pages) != ErrorCode::Success) {
                     LOG(Helper::LogLevel::LL_Error, "Merge failed! Posting Size:%d, limit: %d\n", m_postingSizes.GetSize(headID), m_postingSizeLimit);
                     GetDBStats();
                     return ErrorCode::Fail;
@@ -1531,16 +1531,18 @@ namespace SPTAG::SPANN {
                 uint8_t version = m_versionMap->GetVersion(VID);
                 std::string appendPosting(m_vectorInfoSize, '\0');
                 Serialize((char*)(appendPosting.c_str()), VID, version, p_vectorSet->GetVector(v));
+                std::uint64_t wrote = 0;
                 for (int i = 0; i < replicaCount; i++)
                 {
                     // AppendAsync(selections[i].node, 1, appendPosting_ptr);
                     bool split = false;
-                    Append(p_index.get(), selections[i].node, 1, appendPosting, 0, &split);
+                    Append(p_index.get(), selections[i].node, 1, appendPosting, 0, &split, &wrote);
                     if (p_stats != nullptr && split) {
                         p_stats->m_evictions += 1;
                     }
                 }
                 if (p_stats != nullptr) {
+                    p_stats->m_pagesWritten += (int)wrote;
                     p_stats->m_outEdges += replicaCount;
                     p_stats->m_inEdges += replicaCount;
                     p_stats->m_pagesTouched += replicaCount;

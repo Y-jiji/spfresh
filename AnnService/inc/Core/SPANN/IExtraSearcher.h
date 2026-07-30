@@ -92,7 +92,7 @@ namespace SPTAG {
         // (async) reorganization -- the closest analog to an evicted edge.
         struct InsertStats
         {
-            InsertStats() : m_outEdges(0), m_inEdges(0), m_pagesTouched(0), m_evictions(0), m_headDists(0) {}
+            InsertStats() : m_outEdges(0), m_inEdges(0), m_pagesTouched(0), m_evictions(0), m_headDists(0), m_pagesWritten(0) {}
 
             int m_outEdges;
             int m_inEdges;
@@ -104,6 +104,10 @@ namespace SPTAG {
             // synchronous work; background split/reassign work is not
             // attributable to any single insert and is excluded.
             int m_headDists;
+
+            // Device pages this insert's appends wrote. Only the SPDK store
+            // reports it; RocksDB leaves it zero.
+            int m_pagesWritten;
         };
 
         struct IndexStats {

@@ -251,7 +251,14 @@ namespace SPTAG::SPANN
             return ErrorCode::Success;
         }
 
-        ErrorCode Merge(SizeType key, const std::string& value) {
+        ErrorCode Merge(SizeType key, const std::string& value) override {
+            return Merge(key, value, nullptr);
+        }
+
+        /// Merges `value` into `key`'s posting, adding the blocks it wrote
+        /// into `pages`. SPDK writes straight through, so every block counted
+        /// here is a real device write charged to the job that appended.
+        ErrorCode Merge(SizeType key, const std::string& value, std::uint64_t* pages) override {
             if (key >= m_pBlockMapping.R()) {
                 LOG(Helper::LogLevel::LL_Error, "Key range error: key: %d, mapping size: %d\n", key, m_pBlockMapping.R());
                 return ErrorCode::Fail;
@@ -280,6 +287,7 @@ namespace SPTAG::SPANN
                 memcpy((AddressType*)tmpblocks, postingSize, sizeof(AddressType) * (oldblocks + 1));
                 m_pBlockController.GetBlocks((AddressType*)tmpblocks + 1 + oldblocks, allocblocks);
                 m_pBlockController.WriteBlocks((AddressType*)tmpblocks + 1 + oldblocks, allocblocks, newValue);
+                if (pages != nullptr) *pages += allocblocks;
                 *((int64_t*)tmpblocks) = newSize;
 
                 m_pBlockController.ReleaseBlocks(postingSize + 1 + oldblocks, 1);
@@ -291,6 +299,7 @@ namespace SPTAG::SPANN
             else {
                 m_pBlockController.GetBlocks(postingSize + 1 + oldblocks, allocblocks);
                 m_pBlockController.WriteBlocks(postingSize + 1 + oldblocks, allocblocks, value);
+                if (pages != nullptr) *pages += allocblocks;
                 *postingSize = newSize;
             }
             return ErrorCode::Success;

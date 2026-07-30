@@ -30,6 +30,10 @@ namespace SPTAG
 
             virtual  ErrorCode Merge(SizeType key, const std::string& value) = 0;
 
+            // Same merge, additionally adding the device pages it wrote into
+            // `pages`. A store with no page notion leaves the count alone.
+            virtual ErrorCode Merge(SizeType key, const std::string& value, std::uint64_t* pages) { return Merge(key, value); }
+
             virtual ErrorCode Delete(SizeType key) = 0;
 
             virtual void ForceCompaction() {}
