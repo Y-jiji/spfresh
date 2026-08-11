@@ -272,30 +272,37 @@ namespace SPTAG::SPANN
 
         ErrorCode Get(const SizeType key, std::string* value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs) override {
             if (key >= m_pBlockMapping.R()) return ErrorCode::Fail;
-
-            if (m_pBlockController.ReadBlocks((AddressType*)At(key), value, timeout, reqs)) return ErrorCode::Success;
+            uintptr_t raw = At(key);
+            if (raw == 0xffffffffffffffff) return ErrorCode::Fail;
+            if (m_pBlockController.ReadBlocks((AddressType*)raw, value, timeout, reqs)) return ErrorCode::Success;
             return ErrorCode::Fail;
         }
 
-        ErrorCode MultiGet(const std::vector<SizeType>& keys, std::vector<std::string>* values, 
+        ErrorCode MultiGet(const std::vector<SizeType>& keys, std::vector<std::string>* values,
             const std::chrono::microseconds &timeout, std::vector<Helper::AsyncReadRequest>* reqs) override {
             std::vector<AddressType*> blocks;
             for (SizeType key : keys) {
-                if (key < m_pBlockMapping.R()) blocks.push_back((AddressType*)At(key));
+                if (key < m_pBlockMapping.R()) {
+                    uintptr_t raw = At(key);
+                    blocks.push_back(raw == 0xffffffffffffffff ? nullptr : (AddressType*)raw);
+                }
                 else {
-                    SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Fail to read key:%d total key number:%d\n", key, m_pBlockMapping.R());
+                    blocks.push_back(nullptr);
                 }
             }
             if (m_pBlockController.ReadBlocks(blocks, values, timeout, reqs)) return ErrorCode::Success;
-            return ErrorCode::Fail; 
+            return ErrorCode::Fail;
         }
 
         ErrorCode MultiGet(const std::vector<SizeType>& keys, std::vector<Helper::PageBuffer<std::uint8_t>>& values, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs) override {
             std::vector<AddressType*> blocks;
             for (SizeType key : keys) {
-                if (key < m_pBlockMapping.R()) blocks.push_back((AddressType*)At(key));
+                if (key < m_pBlockMapping.R()) {
+                    uintptr_t raw = At(key);
+                    blocks.push_back(raw == 0xffffffffffffffff ? nullptr : (AddressType*)raw);
+                }
                 else {
-                    SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Fail to read key:%d total key number:%d\n", key, m_pBlockMapping.R());
+                    blocks.push_back(nullptr);
                 }
             }
             if (m_pBlockController.ReadBlocks(blocks, values, timeout, reqs)) return ErrorCode::Success;
