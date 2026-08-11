@@ -37,6 +37,9 @@ namespace SPTAG::SPANN
             static constexpr const char* kUseSsdImplEnv = "SPFRESH_SPDK_USE_SSD_IMPL";
             static constexpr const char* kSpdkConfEnv = "SPFRESH_SPDK_CONF";
             static constexpr const char* kSpdkBdevNameEnv = "SPFRESH_SPDK_BDEV";
+            static constexpr const char* kSpdkCoreMaskEnv = "SPFRESH_SPDK_CORE_MASK";
+            static constexpr const char* kSpdkIovaModeEnv = "SPFRESH_SPDK_IOVA_MODE";
+            static constexpr const char* kSpdkBaseVirtaddrEnv = "SPFRESH_SPDK_BASE_VIRTADDR";
 
             Helper::Concurrent::ConcurrentQueue<AddressType> m_blockAddresses;
             Helper::Concurrent::ConcurrentQueue<AddressType> m_blockAddresses_reserve;
@@ -352,6 +355,14 @@ namespace SPTAG::SPANN
                         std::vector<Helper::AsyncReadRequest> *reqs,
                         std::function<bool(const void *val, const int size)> checksum) override
         {
+            return Merge(key, value, timeout, reqs, checksum, nullptr);
+        }
+
+        ErrorCode Merge(SizeType key, const std::string &value, const std::chrono::microseconds &timeout,
+                        std::vector<Helper::AsyncReadRequest> *reqs,
+                        std::function<bool(const void *val, const int size)> checksum,
+                        std::uint64_t* pages) override
+        {
             if (key >= m_pBlockMapping.R()) {
                 SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Key range error: key: %d, mapping size: %d\n", key, m_pBlockMapping.R());
                 return ErrorCode::Fail;
@@ -385,6 +396,7 @@ namespace SPTAG::SPANN
                 memcpy((AddressType*)tmpblocks, postingSize, sizeof(AddressType) * (oldblocks + 1));
                 m_pBlockController.GetBlocks((AddressType*)tmpblocks + 1 + oldblocks, allocblocks);
                 m_pBlockController.WriteBlocks((AddressType*)tmpblocks + 1 + oldblocks, allocblocks, newValue, timeout, reqs);
+                if (pages != nullptr) *pages += allocblocks;
                 *((int64_t*)tmpblocks) = newSize;
 
                 m_pBlockController.ReleaseBlocks(postingSize + 1 + oldblocks, 1);
@@ -396,6 +408,7 @@ namespace SPTAG::SPANN
             else {
                 m_pBlockController.GetBlocks(postingSize + 1 + oldblocks, allocblocks);
                 m_pBlockController.WriteBlocks(postingSize + 1 + oldblocks, allocblocks, value, timeout, reqs);
+                if (pages != nullptr) *pages += allocblocks;
                 *postingSize = newSize;
             }
             return ErrorCode::Success;

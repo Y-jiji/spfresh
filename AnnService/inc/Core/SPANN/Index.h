@@ -281,7 +281,8 @@ namespace SPTAG
                 return ErrorCode::Success;
             }
 
-            ErrorCode AddIndexSPFresh(const void *p_data, SizeType p_vectorNum, DimensionType p_dimension, SizeType* VID) {
+            ErrorCode AddIndexSPFresh(const void *p_data, SizeType p_vectorNum, DimensionType p_dimension, SizeType* VID,
+                                      SPTAG::SPANN::InsertStats* p_stats = nullptr) {
                 if (m_options.m_storage == Storage::STATIC || m_extraSearcher == nullptr) {
                     SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Only Support KV Extra Update\n");
                     return ErrorCode::Fail;
@@ -332,7 +333,7 @@ namespace SPTAG
                 }
                 workSpace->m_deduper.clear();
                 workSpace->m_postingIDs.clear();
-                return m_extraSearcher->AddIndex(workSpace.get(), vectorSet, m_index, begin);
+                return m_extraSearcher->AddIndex(workSpace.get(), vectorSet, m_index, begin, p_stats);
             }
         };
     } // namespace SPANN

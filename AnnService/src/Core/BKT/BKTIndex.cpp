@@ -376,6 +376,7 @@ void Index<T>::Search(COMMON::QueryResultSet<T> &p_query, COMMON::WorkSpace &p_s
 
             if (p_space.CheckAndSet(nn_index))
                 continue;
+            p_query.CountHeadDist();
             float distance2leaf =
                 m_fComputeDistance(p_query.GetQuantizedTarget(), (m_pSamples)[nn_index], GetFeatureDim());
             p_space.m_iNumberOfCheckedLeaves++;

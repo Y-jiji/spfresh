@@ -39,6 +39,15 @@ namespace SPTAG
                                     std::vector<Helper::AsyncReadRequest> *reqs,
                                     std::function<bool(const void *val, const int size)> checksum) = 0;
 
+            virtual ErrorCode Merge(const SizeType key, const std::string &value,
+                                    const std::chrono::microseconds &timeout,
+                                    std::vector<Helper::AsyncReadRequest> *reqs,
+                                    std::function<bool(const void *val, const int size)> checksum,
+                                    std::uint64_t* pages) {
+                (void)pages;
+                return Merge(key, value, timeout, reqs, checksum);
+            }
+
             virtual ErrorCode Delete(SizeType key) = 0;
 
             virtual ErrorCode DeleteRange(SizeType start, SizeType end) {return ErrorCode::Undefined;}

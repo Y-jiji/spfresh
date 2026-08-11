@@ -140,6 +140,12 @@ void *SPDKIO::BlockController::InitializeSpdk(void *arg)
     opts.json_config_file = spdkConf ? spdkConf : "";
     const char *spdkBdevName = getenv(kSpdkBdevNameEnv);
     ctrl->m_ssdSpdkBdevName = spdkBdevName ? spdkBdevName : "";
+    const char* spdkCoreMask = getenv(kSpdkCoreMaskEnv);
+    if (spdkCoreMask) opts.reactor_mask = spdkCoreMask;
+    const char* spdkIovaMode = getenv(kSpdkIovaModeEnv);
+    if (spdkIovaMode) opts.iova_mode = spdkIovaMode;
+    const char* spdkBaseVirtaddr = getenv(kSpdkBaseVirtaddrEnv);
+    if (spdkBaseVirtaddr) opts.base_virtaddr = strtoull(spdkBaseVirtaddr, nullptr, 0);
 
     int rc;
     rc = spdk_app_start(&opts, &SPTAG::SPANN::SPDKIO::BlockController::SpdkStart, arg);

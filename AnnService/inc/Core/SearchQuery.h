@@ -209,6 +209,7 @@ public:
 
     inline void Reset()
     {
+        m_headDists = 0;
         for (int i = 0; i < m_resultNum; i++)
         {
             m_results[i].VID = -1;
@@ -216,6 +217,10 @@ public:
             m_results[i].Meta.Clear();
         }
     }
+
+    inline void CountHeadDist() { m_headDists++; }
+
+    inline std::uint64_t GetHeadDists() const { return m_headDists; }
 
     inline void SetScanned(int p_scanned)
     {
@@ -252,6 +257,8 @@ public:
 
 
 protected:
+    std::uint64_t m_headDists = 0;
+
     const void* m_target;
 
     void* m_quantizedTarget;

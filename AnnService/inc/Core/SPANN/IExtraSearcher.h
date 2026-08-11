@@ -25,6 +25,7 @@ namespace SPTAG {
             SearchStats()
                 : m_check(0),
                 m_exCheck(0),
+                m_postingCount(0),
                 m_totalListElementsCount(0),
                 m_diskIOCount(0),
                 m_diskAccessCount(0),
@@ -46,6 +47,8 @@ namespace SPTAG {
             int m_check;
 
             int m_exCheck;
+
+            int m_postingCount;
 
             int m_totalListElementsCount;
 
@@ -78,6 +81,18 @@ namespace SPTAG {
             std::chrono::steady_clock::time_point m_searchRequestTime;
 
             int m_threadID;
+        };
+
+        struct InsertStats
+        {
+            InsertStats() : m_outEdges(0), m_inEdges(0), m_pagesTouched(0), m_evictions(0), m_headDists(0), m_pagesWritten(0) {}
+
+            int m_outEdges;
+            int m_inEdges;
+            int m_pagesTouched;
+            int m_evictions;
+            int m_headDists;
+            int m_pagesWritten;
         };
 
         struct IndexStats {
@@ -320,7 +335,7 @@ namespace SPTAG {
                 return ErrorCode::Undefined;
             }
             virtual ErrorCode AddIndex(ExtraWorkSpace* p_exWorkSpace, std::shared_ptr<VectorSet>& p_vectorSet,
-                std::shared_ptr<VectorIndex> p_index, SizeType p_begin) { return ErrorCode::Undefined; }
+                std::shared_ptr<VectorIndex> p_index, SizeType p_begin, InsertStats* p_stats = nullptr) { return ErrorCode::Undefined; }
             virtual ErrorCode DeleteIndex(SizeType p_id) { return ErrorCode::Undefined; }
 
             virtual bool AllFinished() { return false; }

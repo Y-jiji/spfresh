@@ -1374,7 +1374,7 @@ namespace SPTAG::SPANN {
             return ErrorCode::Success;
         }
 
-        bool RNGSelection(std::vector<Edge>& selections, ValueType* queryVector, VectorIndex* p_index, SizeType p_fullID, int& replicaCount, int checkHeadID = -1)
+        bool RNGSelection(std::vector<Edge>& selections, ValueType* queryVector, VectorIndex* p_index, SizeType p_fullID, int& replicaCount, int checkHeadID = -1, InsertStats* p_stats = nullptr)
         {
             COMMON::QueryResultSet<ValueType> queryResults(queryVector, m_opt->m_internalResultNum);
             std::shared_ptr<std::uint8_t> rec_query;
@@ -1384,6 +1384,7 @@ namespace SPTAG::SPANN {
                 queryResults.SetTarget((ValueType*)(rec_query.get()), p_index->m_pQuantizer);
             }
             p_index->SearchIndex(queryResults);
+            if (p_stats != nullptr) p_stats->m_headDists += (int)queryResults.GetHeadDists();
 
             replicaCount = 0;
             for (int i = 0; i < queryResults.GetResultNum() && replicaCount < m_opt->m_replicaCount; ++i)
@@ -1398,6 +1399,7 @@ namespace SPTAG::SPANN {
                 {
                     float nnDist = p_index->ComputeDistance(p_index->GetSample(queryResult->VID),
                         p_index->GetSample(selections[j].node));
+                    if (p_stats != nullptr) p_stats->m_headDists++;
                     if (m_opt->m_rngFactor * nnDist <= queryResult->Dist)
                     {
                         rngAccpeted = false;
@@ -1460,7 +1462,7 @@ namespace SPTAG::SPANN {
             return ErrorCode::Success;
         }
 
-        ErrorCode Append(ExtraWorkSpace* p_exWorkSpace, VectorIndex* p_index, SizeType headID, int appendNum, std::string& appendPosting, int reassignThreshold = 0)
+        ErrorCode Append(ExtraWorkSpace* p_exWorkSpace, VectorIndex* p_index, SizeType headID, int appendNum, std::string& appendPosting, int reassignThreshold = 0, bool* p_split = nullptr, std::uint64_t* pages = nullptr)
         {
             auto appendBegin = std::chrono::high_resolution_clock::now();
             if (appendPosting.empty()) {
@@ -1511,7 +1513,7 @@ namespace SPTAG::SPANN {
                          headID, appendPosting, MaxTimeout, &(p_exWorkSpace->m_diskRequests),
                          [this, prefixChecksum = *m_checkSums[headID]](const void *val, const int size) -> bool {
                     return this->m_checkSum.ValidateChecksum((const char*)val, size, prefixChecksum);
-                })) != ErrorCode::Success)
+                }, pages)) != ErrorCode::Success)
                 {
                     SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Merge failed for %d! Posting Size:%d, limit: %d\n", headID, m_postingSizes.GetSize(headID), m_postingSizeLimit);
                     GetDBStats();
@@ -1535,6 +1537,7 @@ namespace SPTAG::SPANN {
                 // if (m_postingSizes.GetSize(headID) > 120) {
                 //     GetDBStats();
                 // }
+                if (p_split != nullptr) *p_split = true;
                 if (!reassignThreshold) SplitAsync(p_index, headID);
                 else Split(p_exWorkSpace, p_index, headID, !m_opt->m_disableReassign);
                 // SplitAsync(p_index, headID);
@@ -1919,6 +1922,7 @@ namespace SPTAG::SPANN {
             {
                 p_stats->m_compLatency = compLatency / 1000;
                 p_stats->m_diskReadLatency = readLatency / 1000;
+                p_stats->m_postingCount = (int) p_exWorkSpace->m_postingIDs.size();
                 p_stats->m_totalListElementsCount = listElements;
                 p_stats->m_diskIOCount = diskIO;
                 p_stats->m_diskAccessCount = diskRead / 1024;
@@ -2460,13 +2464,13 @@ namespace SPTAG::SPANN {
         }
 
         ErrorCode AddIndex(ExtraWorkSpace* p_exWorkSpace, std::shared_ptr<VectorSet>& p_vectorSet,
-            std::shared_ptr<VectorIndex> p_index, SizeType begin) override {
+            std::shared_ptr<VectorIndex> p_index, SizeType begin, InsertStats* p_stats = nullptr) override {
 
             for (int v = 0; v < p_vectorSet->Count(); v++) {
                 SizeType VID = begin + v;
                 std::vector<Edge> selections(static_cast<size_t>(m_opt->m_replicaCount));
                 int replicaCount;
-                RNGSelection(selections, (ValueType*)(p_vectorSet->GetVector(v)), p_index.get(), VID, replicaCount);
+                RNGSelection(selections, (ValueType*)(p_vectorSet->GetVector(v)), p_index.get(), VID, replicaCount, -1, p_stats);
 
                 uint8_t version = m_versionMap->GetVersion(VID);
                 std::string appendPosting(m_vectorInfoSize, '\0');
@@ -2474,18 +2478,29 @@ namespace SPTAG::SPANN {
                 if (m_opt->m_enableWAL && m_wal) {
                     m_wal->PutAssignment(appendPosting);
                 }
+                std::uint64_t wrote = 0;
                 for (int i = 0; i < replicaCount; i++)
                 {
                     // AppendAsync(selections[i].node, 1, appendPosting_ptr);
                     ErrorCode ret;
+                    bool split = false;
                     if (m_opt->m_asyncAppendQueueSize > 0) {
                         if ((ret = AsyncAppend(p_exWorkSpace, p_index.get(), selections[i].node, 1, appendPosting)) != ErrorCode::Success)
                             return ret;
                     } else {
-                        if ((ret = Append(p_exWorkSpace, p_index.get(), selections[i].node, 1, appendPosting)) !=
+                        if ((ret = Append(p_exWorkSpace, p_index.get(), selections[i].node, 1, appendPosting, 0, &split, &wrote)) !=
                             ErrorCode::Success)
                             return ret;
                     }
+                    if (p_stats != nullptr && split) {
+                        p_stats->m_evictions += 1;
+                    }
+                }
+                if (p_stats != nullptr) {
+                    p_stats->m_pagesWritten += (int)wrote;
+                    p_stats->m_outEdges += replicaCount;
+                    p_stats->m_inEdges += replicaCount;
+                    p_stats->m_pagesTouched += replicaCount;
                 }
             }
             return ErrorCode::Success;

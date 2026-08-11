@@ -730,6 +730,7 @@ break;
                 for (char i = 0; i < m_iTreeNumber; i++) {
                     const BKTNode& node = m_pTreeRoots[m_pTreeStart[i]];
                     if (node.childStart < 0) {
+                        p_query.CountHeadDist();
                         p_space.m_SPTQueue.insert(NodeDistPair(m_pTreeStart[i], fComputeDistance(p_query.GetQuantizedTarget(), data[node.centerid], data.C())));
                     } else if (m_bfs) {
                         float FactorQ = 1.1f;
@@ -744,6 +745,7 @@ break;
                         
                         for (SizeType begin = node.childStart; begin < node.childEnd; begin++) {
                             SizeType index = m_pTreeRoots[begin].centerid;
+                            p_query.CountHeadDist();
                             float dist = fComputeDistance(p_query.GetQuantizedTarget(), data[index], data.C());
                             if (dist <= FactorQ * p_curr->Top().distance && p_curr->size() < MaxBFSNodes) {
                                 p_curr->insert(NodeDistPair(begin, dist));
@@ -770,6 +772,7 @@ break;
                                     }
                                     for (SizeType begin = tnode.childStart; begin < tnode.childEnd; begin++) {
                                         SizeType index = m_pTreeRoots[begin].centerid;
+                                        p_query.CountHeadDist();
                                         float dist = fComputeDistance(p_query.GetQuantizedTarget(), data[index], data.C());
                                         if (dist <= FactorQ * p_next->Top().distance && p_next->size() < MaxBFSNodes) {
                                             p_next->insert(NodeDistPair(begin, dist));
@@ -793,6 +796,7 @@ break;
                         }
                         for (SizeType begin = node.childStart; begin < node.childEnd; begin++) {
                             SizeType index = m_pTreeRoots[begin].centerid;
+                            p_query.CountHeadDist();
                             p_space.m_SPTQueue.insert(NodeDistPair(begin, fComputeDistance(p_query.GetQuantizedTarget(), data[index], data.C())));
                         }
                     }
@@ -823,8 +827,9 @@ break;
                         }
                         for (SizeType begin = tnode.childStart; begin < tnode.childEnd; begin++) {
                             SizeType index = m_pTreeRoots[begin].centerid;
+                            p_query.CountHeadDist();
                             p_space.m_SPTQueue.insert(NodeDistPair(begin, fComputeDistance(p_query.GetQuantizedTarget(), data[index], data.C())));
-                        } 
+                        }
                     }
                 }
             }
