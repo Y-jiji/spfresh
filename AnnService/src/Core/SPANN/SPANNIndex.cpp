@@ -780,47 +780,75 @@ int Index<T>::SelectHeadDynamicallyInternal(const std::shared_ptr<COMMON::BKTree
                                             const Options &p_opts, std::vector<int> &p_selected)
 {
     typedef std::pair<int, int> CSPair;
-    std::vector<CSPair> children;
-    int childrenSize = 1;
-    const auto &node = (*p_tree)[p_nodeID];
-    if (node.childStart >= 0)
+
+    struct Frame {
+        int nodeID;
+        int childCur;
+        int childEnd;
+        int childrenSize;
+        std::vector<CSPair> children;
+    };
+
+    std::vector<Frame> stack;
+    stack.reserve(64);
+    stack.push_back({p_nodeID, 0, 0, 1, {}});
     {
-        children.reserve(node.childEnd - node.childStart);
-        for (int i = node.childStart; i < node.childEnd; ++i)
-        {
-            int cs = SelectHeadDynamicallyInternal(p_tree, i, p_opts, p_selected);
-            if (cs > 0)
-            {
-                children.emplace_back(i, cs);
-                childrenSize += cs;
-            }
+        const auto &root = (*p_tree)[p_nodeID];
+        if (root.childStart >= 0) {
+            stack.back().childCur = root.childStart;
+            stack.back().childEnd = root.childEnd;
+            stack.back().children.reserve(root.childEnd - root.childStart);
         }
     }
 
-    if (childrenSize >= p_opts.m_selectThreshold)
-    {
-        if (node.centerid < (*p_tree)[0].centerid)
-        {
-            p_selected.push_back(node.centerid);
-        }
+    while (!stack.empty()) {
+        Frame &cur = stack.back();
 
-        if (childrenSize > p_opts.m_splitThreshold)
-        {
-            std::sort(children.begin(), children.end(),
-                      [](const CSPair &a, const CSPair &b) { return a.second > b.second; });
-
-            size_t selectCnt = static_cast<size_t>(std::ceil(childrenSize * 1.0 / p_opts.m_splitFactor) + 0.5);
-            // if (selectCnt > 1) selectCnt -= 1;
-            for (size_t i = 0; i < selectCnt && i < children.size(); ++i)
-            {
-                p_selected.push_back((*p_tree)[children[i].first].centerid);
+        if (cur.childCur < cur.childEnd) {
+            int childID = cur.childCur++;
+            const auto &childNode = (*p_tree)[childID];
+            if (childNode.childStart >= 0) {
+                stack.push_back({childID, childNode.childStart, childNode.childEnd, 1, {}});
+                stack.back().children.reserve(childNode.childEnd - childNode.childStart);
+                continue;
             }
+            // leaf node: childrenSize = 1, returned directly
+            cur.children.emplace_back(childID, 1);
+            cur.childrenSize += 1;
+            continue;
         }
 
-        return 0;
+        // All children processed — apply selection logic
+        const auto &node = (*p_tree)[cur.nodeID];
+        int result;
+        if (cur.childrenSize >= p_opts.m_selectThreshold) {
+            if (node.centerid < (*p_tree)[0].centerid) {
+                p_selected.push_back(node.centerid);
+            }
+            if (cur.childrenSize > p_opts.m_splitThreshold) {
+                std::sort(cur.children.begin(), cur.children.end(),
+                          [](const CSPair &a, const CSPair &b) { return a.second > b.second; });
+                size_t selectCnt = static_cast<size_t>(std::ceil(cur.childrenSize * 1.0 / p_opts.m_splitFactor) + 0.5);
+                for (size_t i = 0; i < selectCnt && i < cur.children.size(); ++i) {
+                    p_selected.push_back((*p_tree)[cur.children[i].first].centerid);
+                }
+            }
+            result = 0;
+        } else {
+            result = cur.childrenSize;
+        }
+
+        int finishedNodeID = cur.nodeID;
+        stack.pop_back();
+        if (stack.empty()) return result;
+
+        if (result > 0) {
+            stack.back().children.emplace_back(finishedNodeID, result);
+            stack.back().childrenSize += result;
+        }
     }
 
-    return childrenSize;
+    return 0;
 }
 
 template <typename T>
