@@ -33,7 +33,9 @@ else()
     endif()
 endif()
 
-if (Python_FOUND)
+find_program(SWIG_EXECUTABLE swig)
+
+if (Python_FOUND AND SWIG_EXECUTABLE)
     message (STATUS "Found Python.")
     message (STATUS "Include Path: ${Python_INCLUDE_DIRS}")
     message (STATUS "Library Path: ${Python_LIBRARIES}")
