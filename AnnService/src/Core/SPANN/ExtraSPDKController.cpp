@@ -521,6 +521,7 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data, std
             {
                 SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Read timeout happens! Skip %d requests...\n",
                              (reqcount - currSubIoEndId + in_flight));
+                return false;
             }
             auto t2 = std::chrono::high_resolution_clock::now();
             if (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1) > timeout)
@@ -686,6 +687,7 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data,
             {
                 SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Read timeout happens! Skip %d requests...\n",
                              (realcount - currSubIoEndId + in_flight));
+                return false;
             }
             auto t2 = std::chrono::high_resolution_clock::now();
             if (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1) > timeout)
