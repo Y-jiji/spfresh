@@ -1337,7 +1337,7 @@ namespace SPTAG::SPANN {
                 }
                 auto reassignScanIOBegin = std::chrono::high_resolution_clock::now();
                 ErrorCode ret;
-                if ((ret = db->MultiGet(HeadPrevTopK, p_exWorkSpace->m_pageBuffers, m_hardLatencyLimit,
+                if ((ret = db->MultiGet(HeadPrevTopK, p_exWorkSpace->m_pageBuffers, MaxTimeout,
                                         &(p_exWorkSpace->m_diskRequests))) != ErrorCode::Success ||
                     !ValidatePostings(HeadPrevTopK, p_exWorkSpace->m_pageBuffers))
                 {
