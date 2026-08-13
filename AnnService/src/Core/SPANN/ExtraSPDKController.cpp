@@ -63,7 +63,12 @@ void SPDKIO::BlockController::SpdkIoLoop(void *arg)
                 rc = spdk_bdev_write(ctrl->m_ssdSpdkBdevDesc, ctrl->m_ssdSpdkBdevIoChannel, currSubIo->m_buffer,
                                      currSubIo->m_offset, PageSize, SpdkBdevIoCallback, currSubIo);
             }
-            if (rc && rc != -ENOMEM)
+            if (rc == -ENOMEM)
+            {
+                ctrl->m_submittedSubIoRequests.push(currSubIo);
+                break;
+            }
+            else if (rc)
             {
                 SPTAGLIB_LOG(Helper::LogLevel::LL_Error,
                              "SPDKIO::BlockController::SpdkStart %s failed: %d, shutting down, offset: %ld\n",
