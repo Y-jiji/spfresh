@@ -871,6 +871,8 @@ namespace SPTAG::SPANN {
                         elapsedMSeconds = std::chrono::duration_cast<std::chrono::microseconds>(splitPutEnd - splitPutBegin).count();
                         m_stat.m_putCost += elapsedMSeconds;
                         m_stat.m_theSameHeadNum++;
+                        memcpy(const_cast<void*>(p_index->GetSample(headID)), args.centers + k * args._D, sizeof(ValueType) * m_opt->m_dim);
+                        p_index->AddIndexIdx(headID, headID + 1);
                     }
                     else {
                         int begin, end = 0;
