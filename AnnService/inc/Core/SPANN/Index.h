@@ -331,7 +331,7 @@ namespace SPTAG
                 else {
                     m_extraSearcher->InitWorkSpace(workSpace.get(), true);
                 }
-                workSpace->Enter();
+                WorkSpaceGuard guard(workSpace.get());
                 workSpace->m_deduper.clear();
                 workSpace->m_postingIDs.clear();
                 return m_extraSearcher->AddIndex(workSpace.get(), vectorSet, m_index, begin, p_stats);

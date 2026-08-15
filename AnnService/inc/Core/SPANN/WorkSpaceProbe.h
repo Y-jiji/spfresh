@@ -28,14 +28,16 @@ namespace SPTAG
             t_currentJobId = p_jobId;
         }
 
-        /// Aborts on the first workspace observed serving a second job.
-        [[noreturn]] inline void ProbeFail(std::uint64_t p_wsId, std::uint64_t p_firstJobId,
+        /// Aborts when a job enters a workspace a prior job never closed.
+        /// Sequential reuse after a clean close is legitimate pooling and
+        /// never reaches here.
+        [[noreturn]] inline void ProbeFail(std::uint64_t p_wsId, std::uint64_t p_openJobId,
                                            std::uint64_t p_jobId)
         {
             std::fprintf(stderr,
-                         "PROBE PANIC: workspace %llu entered by job %llu after job %llu\n",
+                         "PROBE PANIC: workspace %llu entered by job %llu while job %llu still open\n",
                          (unsigned long long)p_wsId, (unsigned long long)p_jobId,
-                         (unsigned long long)p_firstJobId);
+                         (unsigned long long)p_openJobId);
             std::fflush(stderr);
             std::abort();
         }
