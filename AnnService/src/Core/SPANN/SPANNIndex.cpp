@@ -318,6 +318,7 @@ template <typename T> ErrorCode Index<T>::SearchIndex(QueryResult &p_query, bool
         {
             m_extraSearcher->InitWorkSpace(workSpace.get(), true);
         }
+        workSpace->Enter();
         workSpace->m_deduper.clear();
         workSpace->m_postingIDs.clear();
 
@@ -534,6 +535,7 @@ template <typename T> ErrorCode Index<T>::SearchDiskIndex(QueryResult &p_query, 
         m_extraSearcher->InitWorkSpace(workSpace.get(), true);
     }
 
+    workSpace->Enter();
     workSpace->m_deduper.clear();
     workSpace->m_postingIDs.clear();
 

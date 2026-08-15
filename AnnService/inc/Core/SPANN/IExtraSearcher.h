@@ -5,6 +5,7 @@
 #define _SPTAG_SPANN_IEXTRASEARCHER_H_
 
 #include "Options.h"
+#include "WorkSpaceProbe.h"
 
 #include "inc/Core/VectorIndex.h"
 #include "inc/Core/Common/VersionLabel.h"
@@ -174,7 +175,7 @@ namespace SPTAG {
 
         struct ExtraWorkSpace : public SPTAG::COMMON::IWorkSpace
         {
-            ExtraWorkSpace() {}
+            ExtraWorkSpace() : m_wsId(g_workSpaceSeq.fetch_add(1)) {}
 
             ~ExtraWorkSpace() {
                 if (m_callback) {
@@ -182,7 +183,21 @@ namespace SPTAG {
                 }
             }
 
-            ExtraWorkSpace(ExtraWorkSpace& other) {
+            /// Binds this workspace to the calling thread's current job, and
+            /// panics if it already belongs to a different one. A workspace
+            /// serving two jobs is the condition under test.
+            void Enter() {
+                if (t_currentJobId == 0) return;
+                if (m_firstJobId == 0) {
+                    m_firstJobId = t_currentJobId;
+                    return;
+                }
+                if (m_firstJobId != t_currentJobId) {
+                    ProbeFail(m_wsId, m_firstJobId, t_currentJobId);
+                }
+            }
+
+            ExtraWorkSpace(ExtraWorkSpace& other) : m_wsId(g_workSpaceSeq.fetch_add(1)) {
                 Initialize(other.m_deduper.MaxCheck(), other.m_deduper.HashTableExponent(), (int)other.m_pageBuffers.size(), (int)(other.m_pageBuffers[0].GetPageSize()), other.m_blockIO, other.m_enableDataCompression);
             }
 
@@ -289,6 +304,10 @@ namespace SPTAG {
             std::function<bool(const ByteArray&)> m_filterFunc;
 
             std::function<void()> m_callback;
+
+            std::uint64_t m_wsId = 0;
+
+            std::uint64_t m_firstJobId = 0;
         };
 
         class IExtraSearcher
