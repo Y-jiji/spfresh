@@ -5,7 +5,6 @@
 #define _SPTAG_SPANN_IEXTRASEARCHER_H_
 
 #include "Options.h"
-#include "WorkSpaceProbe.h"
 
 #include "inc/Core/VectorIndex.h"
 #include "inc/Core/Common/VersionLabel.h"
@@ -175,7 +174,7 @@ namespace SPTAG {
 
         struct ExtraWorkSpace : public SPTAG::COMMON::IWorkSpace
         {
-            ExtraWorkSpace() : m_wsId(g_workSpaceSeq.fetch_add(1)) {}
+            ExtraWorkSpace() {}
 
             ~ExtraWorkSpace() {
                 if (m_callback) {
@@ -183,26 +182,7 @@ namespace SPTAG {
                 }
             }
 
-            /// Opens this workspace for the calling thread's current job, and
-            /// panics if a prior job left it open. Sequential reuse after a
-            /// clean Leave is legitimate pooling, so only a genuine overlap
-            /// reaches ProbeFail.
-            void Enter() {
-                if (t_currentJobId == 0) return;
-                std::uint64_t open = 0;
-                if (!m_activeJobId.compare_exchange_strong(open, t_currentJobId)) {
-                    ProbeFail(m_wsId, open, t_currentJobId);
-                }
-            }
-
-            /// Closes this workspace, making it available to the next job.
-            void Leave() {
-                if (t_currentJobId == 0) return;
-                m_lastJobId = t_currentJobId;
-                m_activeJobId.store(0);
-            }
-
-            ExtraWorkSpace(ExtraWorkSpace& other) : m_wsId(g_workSpaceSeq.fetch_add(1)) {
+            ExtraWorkSpace(ExtraWorkSpace& other) {
                 Initialize(other.m_deduper.MaxCheck(), other.m_deduper.HashTableExponent(), (int)other.m_pageBuffers.size(), (int)(other.m_pageBuffers[0].GetPageSize()), other.m_blockIO, other.m_enableDataCompression);
             }
 
@@ -309,26 +289,6 @@ namespace SPTAG {
             std::function<bool(const ByteArray&)> m_filterFunc;
 
             std::function<void()> m_callback;
-
-            std::uint64_t m_wsId = 0;
-
-            std::atomic<std::uint64_t> m_activeJobId{ 0 };
-
-            std::uint64_t m_lastJobId = 0;
-        };
-
-        /// Pairs Enter with Leave across every exit of a scope, including the
-        /// error returns that skip the factory's own release.
-        struct WorkSpaceGuard
-        {
-            explicit WorkSpaceGuard(ExtraWorkSpace* p_ws) : m_ws(p_ws) { m_ws->Enter(); }
-
-            ~WorkSpaceGuard() { m_ws->Leave(); }
-
-            WorkSpaceGuard(const WorkSpaceGuard&) = delete;
-            WorkSpaceGuard& operator = (const WorkSpaceGuard&) = delete;
-
-            ExtraWorkSpace* m_ws;
         };
 
         class IExtraSearcher
