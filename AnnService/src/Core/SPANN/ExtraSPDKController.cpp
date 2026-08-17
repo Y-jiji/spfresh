@@ -3,6 +3,7 @@
 
 #ifndef _MSC_VER
 #include "inc/Core/SPANN/ExtraSPDKController.h"
+#include "inc/Core/SPANN/IoMeter.h"
 #include "inc/Helper/AsyncFileReader.h"
 
 namespace SPTAG::SPANN
@@ -393,6 +394,7 @@ bool SPDKIO::BlockController::ReadBlocks(AddressType *p_data, std::string *p_val
                 curr.m_ctrl = this;
                 curr.myiocb.aio_lio_opcode = IOCB_CMD_PREAD;
                 m_submittedSubIoRequests.push(&curr);
+                charge(false);
                 currOffset += PageSize;
                 dataIdx++;
                 in_flight++;
@@ -505,6 +507,7 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data, std
                 {
                     Helper::AsyncReadRequest &curr = reqs->at(currSubIoIdx);
                     m_submittedSubIoRequests.push(&curr);
+                    charge(false);
                     in_flight++;
                     currSubIoIdx++;
                 }
@@ -671,6 +674,7 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data,
                         reqIdx++;
                     Helper::AsyncReadRequest &curr = reqs->at(reqIdx);
                     m_submittedSubIoRequests.push(&curr);
+                    charge(false);
                     in_flight++;
                     currSubIoIdx++;
                     reqIdx++;
@@ -743,6 +747,7 @@ bool SPDKIO::BlockController::WriteBlocks(AddressType *p_data, int p_size, const
                 curr.m_ctrl = this;
                 curr.myiocb.aio_lio_opcode = IOCB_CMD_PWRITE;
                 m_submittedSubIoRequests.push(&curr);
+                charge(true);
                 currBlockIdx++;
                 inflight++;
             }

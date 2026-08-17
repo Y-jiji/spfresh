@@ -16,6 +16,7 @@
 #include "PersistentBuffer.h"
 #include "inc/Core/Common/PostingSizeRecord.h"
 #include "ExtraFileController.h"
+#include "IoMeter.h"
 #include <chrono>
 #include <cstdint>
 #include <map>
@@ -684,6 +685,7 @@ namespace SPTAG::SPANN {
         
         ErrorCode Split(ExtraWorkSpace* p_exWorkSpace, VectorIndex* p_index, const SizeType headID, bool reassign = false, bool preReassign = false, bool requirelock = true)
         {
+            RoleScope charged(IoRole::Split);
             auto splitBegin = std::chrono::high_resolution_clock::now();
             std::vector<SizeType> newHeadsID;
             std::vector<std::string> newPostingLists;
@@ -1279,6 +1281,7 @@ namespace SPTAG::SPANN {
                                   std::vector<std::string> &postingLists, std::vector<SizeType> &newHeadsID,
                                   bool theSameHead)
         {
+            RoleScope charged(IoRole::Reasg);
             auto headVector = reinterpret_cast<const ValueType*>(p_index->GetSample(headID));
             if (m_opt->m_excludehead && !theSameHead)
             {
@@ -1559,6 +1562,7 @@ namespace SPTAG::SPANN {
         
         ErrorCode Reassign(ExtraWorkSpace* p_exWorkSpace, VectorIndex* p_index, std::shared_ptr<std::string> vectorInfo, SizeType HeadPrev)
         {
+            RoleScope charged(IoRole::Reasg);
             SizeType VID = *((SizeType*)vectorInfo->c_str());
             uint8_t version = *((uint8_t*)(vectorInfo->c_str() + sizeof(VID)));
             // return;
@@ -1864,6 +1868,7 @@ namespace SPTAG::SPANN {
             if (p_stats) remainLimit = m_hardLatencyLimit - std::chrono::microseconds((int)p_stats->m_totalLatency);
             else remainLimit = m_hardLatencyLimit;
 
+            IoCount charged = taken();
             auto readStart = std::chrono::high_resolution_clock::now();
             if (db->MultiGet(p_exWorkSpace->m_postingIDs, p_exWorkSpace->m_pageBuffers, remainLimit, &(p_exWorkSpace->m_diskRequests)) != ErrorCode::Success ||
                 !ValidatePostings(p_exWorkSpace->m_postingIDs, p_exWorkSpace->m_pageBuffers))
@@ -1873,6 +1878,7 @@ namespace SPTAG::SPANN {
             }
             auto readEnd = std::chrono::high_resolution_clock::now();
             readLatency += ((double)std::chrono::duration_cast<std::chrono::microseconds>(readEnd - readStart).count());
+            diskIO += (int)(taken().reads - charged.reads);
 
             const auto postingListCount = static_cast<uint32_t>(p_exWorkSpace->m_postingIDs.size());
             for (uint32_t pi = 0; pi < postingListCount; ++pi) {
@@ -1881,7 +1887,6 @@ namespace SPTAG::SPANN {
                 char* p_postingListFullData = (char*)(buffer.GetBuffer());
                 int vectorNum = (int)(buffer.GetAvailableSize() / m_vectorInfoSize);
 
-                diskIO += ((buffer.GetAvailableSize() + PageSize - 1) >> PageSizeEx);
                 diskRead += (int)(buffer.GetAvailableSize());
                 
                 //SPTAGLIB_LOG(Helper::LogLevel::LL_Info, "DEBUG: postingList %d size:%d m_vectorInfoSize:%d vectorNum:%d\n", pi, (int)(postingList.size()), m_vectorInfoSize, vectorNum);
@@ -2480,7 +2485,7 @@ namespace SPTAG::SPANN {
                 if (m_opt->m_enableWAL && m_wal) {
                     m_wal->PutAssignment(appendPosting);
                 }
-                std::uint64_t wrote = 0;
+                IoCount charged = taken();
                 for (int i = 0; i < replicaCount; i++)
                 {
                     // AppendAsync(selections[i].node, 1, appendPosting_ptr);
@@ -2490,7 +2495,7 @@ namespace SPTAG::SPANN {
                         if ((ret = AsyncAppend(p_exWorkSpace, p_index.get(), selections[i].node, 1, appendPosting)) != ErrorCode::Success)
                             return ret;
                     } else {
-                        if ((ret = Append(p_exWorkSpace, p_index.get(), selections[i].node, 1, appendPosting, 0, &split, &wrote)) !=
+                        if ((ret = Append(p_exWorkSpace, p_index.get(), selections[i].node, 1, appendPosting, 0, &split, nullptr)) !=
                             ErrorCode::Success)
                             return ret;
                     }
@@ -2499,10 +2504,11 @@ namespace SPTAG::SPANN {
                     }
                 }
                 if (p_stats != nullptr) {
-                    p_stats->m_pagesWritten += (int)wrote;
+                    IoCount closed = taken();
+                    p_stats->m_pagesWritten += (int)(closed.write - charged.write);
                     p_stats->m_outEdges += replicaCount;
                     p_stats->m_inEdges += replicaCount;
-                    p_stats->m_pagesTouched += replicaCount;
+                    p_stats->m_pagesTouched += (int)(closed.reads - charged.reads);
                 }
             }
             return ErrorCode::Success;
