@@ -675,7 +675,7 @@ namespace SPTAG::SPANN {
                     {
                         for (SizeType pid : mergelist)
                         {
-                            MergeAsync(p_index.get(), pid, p_reads, p_write);
+                            MergeAsync(p_index.get(), pid);
                         }
                         Checkpoint(m_opt->m_indexDirectory);
                         p_index->SaveIndex(m_opt->m_indexDirectory + FolderSep + m_opt->m_headIndexFolder);
