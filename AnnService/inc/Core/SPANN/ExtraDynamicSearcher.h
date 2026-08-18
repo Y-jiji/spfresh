@@ -972,7 +972,7 @@ namespace SPTAG::SPANN {
         {
             {
                 if (!m_mergeLock.try_lock()) {
-                    auto* curJob = new MergeAsyncJob(p_index, this, headID, reassign, nullptr);
+                    auto* curJob = new MergeAsyncJob(p_index, this, headID, reassign, p_reads, p_write, nullptr);
                     m_splitThreadPool->add(curJob);
                     return ErrorCode::Success;
                 }
