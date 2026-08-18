@@ -3,7 +3,6 @@
 
 #ifndef _MSC_VER
 #include "inc/Core/SPANN/ExtraSPDKController.h"
-#include "inc/Core/SPANN/IoMeter.h"
 #include "inc/Helper/AsyncFileReader.h"
 
 namespace SPTAG::SPANN
@@ -344,7 +343,7 @@ bool SPDKIO::BlockController::ReleaseBlocks(AddressType *p_data, int p_size)
 // concat all the block contents together into p_value string.
 bool SPDKIO::BlockController::ReadBlocks(AddressType *p_data, std::string *p_value,
                                          const std::chrono::microseconds &timeout,
-                                         std::vector<Helper::AsyncReadRequest> *reqs)
+                                         std::vector<Helper::AsyncReadRequest> *reqs, std::uint64_t *p_reads)
 {
     if (m_useMemImpl)
     {
@@ -394,7 +393,7 @@ bool SPDKIO::BlockController::ReadBlocks(AddressType *p_data, std::string *p_val
                 curr.m_ctrl = this;
                 curr.myiocb.aio_lio_opcode = IOCB_CMD_PREAD;
                 m_submittedSubIoRequests.push(&curr);
-                charge(false);
+                if (p_reads) __atomic_fetch_add(p_reads, 1, __ATOMIC_RELAXED);
                 currOffset += PageSize;
                 dataIdx++;
                 in_flight++;
@@ -427,14 +426,14 @@ bool SPDKIO::BlockController::ReadBlocks(AddressType *p_data, std::string *p_val
 // parallel read a list of posting lists.
 bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data, std::vector<std::string> *p_values,
                                          const std::chrono::microseconds &timeout,
-                                         std::vector<Helper::AsyncReadRequest> *reqs)
+                                         std::vector<Helper::AsyncReadRequest> *reqs, std::uint64_t *p_reads)
 {
     if (m_useMemImpl)
     {
         p_values->resize(p_data.size());
         for (size_t i = 0; i < p_data.size(); i++)
         {
-            ReadBlocks(p_data[i], &((*p_values)[i]), timeout, reqs);
+            ReadBlocks(p_data[i], &((*p_values)[i]), timeout, reqs, p_reads);
         }
         return true;
     }
@@ -507,7 +506,7 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data, std
                 {
                     Helper::AsyncReadRequest &curr = reqs->at(currSubIoIdx);
                     m_submittedSubIoRequests.push(&curr);
-                    charge(false);
+                    if (p_reads) __atomic_fetch_add(p_reads, 1, __ATOMIC_RELAXED);
                     in_flight++;
                     currSubIoIdx++;
                 }
@@ -548,7 +547,7 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data, std
 bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data,
                                          std::vector<Helper::PageBuffer<std::uint8_t>> &p_values,
                                          const std::chrono::microseconds &timeout,
-                                         std::vector<Helper::AsyncReadRequest> *reqs)
+                                         std::vector<Helper::AsyncReadRequest> *reqs, std::uint64_t *p_reads)
 {
     if (m_useMemImpl)
     {
@@ -674,7 +673,7 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data,
                         reqIdx++;
                     Helper::AsyncReadRequest &curr = reqs->at(reqIdx);
                     m_submittedSubIoRequests.push(&curr);
-                    charge(false);
+                    if (p_reads) __atomic_fetch_add(p_reads, 1, __ATOMIC_RELAXED);
                     in_flight++;
                     currSubIoIdx++;
                     reqIdx++;
@@ -715,7 +714,7 @@ bool SPDKIO::BlockController::ReadBlocks(std::vector<AddressType *> &p_data,
 // write p_value into p_size blocks start from p_data
 bool SPDKIO::BlockController::WriteBlocks(AddressType *p_data, int p_size, const std::string &p_value,
                                           const std::chrono::microseconds &timeout,
-                                          std::vector<Helper::AsyncReadRequest> *reqs)
+                                          std::vector<Helper::AsyncReadRequest> *reqs, std::uint64_t *p_write)
 {
     if (m_useMemImpl)
     {
@@ -747,7 +746,7 @@ bool SPDKIO::BlockController::WriteBlocks(AddressType *p_data, int p_size, const
                 curr.m_ctrl = this;
                 curr.myiocb.aio_lio_opcode = IOCB_CMD_PWRITE;
                 m_submittedSubIoRequests.push(&curr);
-                charge(true);
+                if (p_write) __atomic_fetch_add(p_write, 1, __ATOMIC_RELAXED);
                 currBlockIdx++;
                 inflight++;
             }

@@ -101,14 +101,14 @@ namespace SPTAG::SPANN
             // read a posting list. p_data[0] is the total data size, 
             // p_data[1], p_data[2], ..., p_data[((p_data[0] + PageSize - 1) >> PageSizeEx)] are the addresses of the blocks
             // concat all the block contents together into p_value string.
-            bool ReadBlocks(AddressType* p_data, std::string* p_value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs);
+            bool ReadBlocks(AddressType* p_data, std::string* p_value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs, std::uint64_t* p_reads = nullptr);
 
             // parallel read a list of posting lists.
-            bool ReadBlocks(std::vector<AddressType*>& p_data, std::vector<std::string>* p_values, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs);
-            bool ReadBlocks(std::vector<AddressType*>& p_data, std::vector<Helper::PageBuffer<std::uint8_t>>& p_values, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs);
+            bool ReadBlocks(std::vector<AddressType*>& p_data, std::vector<std::string>* p_values, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs, std::uint64_t* p_reads = nullptr);
+            bool ReadBlocks(std::vector<AddressType*>& p_data, std::vector<Helper::PageBuffer<std::uint8_t>>& p_values, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs, std::uint64_t* p_reads = nullptr);
 
             // write p_value into p_size blocks start from p_data
-            bool WriteBlocks(AddressType* p_data, int p_size, const std::string& p_value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs);
+            bool WriteBlocks(AddressType* p_data, int p_size, const std::string& p_value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs, std::uint64_t* p_write = nullptr);
 
             bool IOStatistics();
 
@@ -271,10 +271,14 @@ namespace SPTAG::SPANN
         }
 
         ErrorCode Get(const SizeType key, std::string* value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs) override {
+            return Get(key, value, timeout, reqs, nullptr);
+        }
+
+        ErrorCode Get(const SizeType key, std::string* value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs, std::uint64_t* p_reads) override {
             if (key >= m_pBlockMapping.R()) return ErrorCode::Fail;
             uintptr_t raw = At(key);
             if (raw == 0xffffffffffffffff) return ErrorCode::Fail;
-            if (m_pBlockController.ReadBlocks((AddressType*)raw, value, timeout, reqs)) return ErrorCode::Success;
+            if (m_pBlockController.ReadBlocks((AddressType*)raw, value, timeout, reqs, p_reads)) return ErrorCode::Success;
             return ErrorCode::Fail;
         }
 
@@ -295,6 +299,10 @@ namespace SPTAG::SPANN
         }
 
         ErrorCode MultiGet(const std::vector<SizeType>& keys, std::vector<Helper::PageBuffer<std::uint8_t>>& values, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs) override {
+            return MultiGet(keys, values, timeout, reqs, nullptr);
+        }
+
+        ErrorCode MultiGet(const std::vector<SizeType>& keys, std::vector<Helper::PageBuffer<std::uint8_t>>& values, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs, std::uint64_t* p_reads) override {
             std::vector<AddressType*> blocks;
             for (SizeType key : keys) {
                 if (key < m_pBlockMapping.R()) {
@@ -305,11 +313,15 @@ namespace SPTAG::SPANN
                     blocks.push_back(nullptr);
                 }
             }
-            if (m_pBlockController.ReadBlocks(blocks, values, timeout, reqs)) return ErrorCode::Success;
+            if (m_pBlockController.ReadBlocks(blocks, values, timeout, reqs, p_reads)) return ErrorCode::Success;
             return ErrorCode::Fail;
         }
 
         ErrorCode Put(const SizeType key, const std::string& value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs) override {
+            return Put(key, value, timeout, reqs, nullptr);
+        }
+
+        ErrorCode Put(const SizeType key, const std::string& value, const std::chrono::microseconds& timeout, std::vector<Helper::AsyncReadRequest>* reqs, std::uint64_t* p_write) override {
             int blocks = ((value.size() + PageSize - 1) >> PageSizeEx);
             if (blocks >= m_blockLimit) {
                 SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Failt to put key:%d value:%lld since value too long!\n", key, value.size());
@@ -339,14 +351,14 @@ namespace SPTAG::SPANN
             int64_t* postingSize = (int64_t*)At(key);
             if (*postingSize < 0) {
                 m_pBlockController.GetBlocks(postingSize + 1, blocks);
-                m_pBlockController.WriteBlocks(postingSize + 1, blocks, value, timeout, reqs);
+                m_pBlockController.WriteBlocks(postingSize + 1, blocks, value, timeout, reqs, p_write);
                 *postingSize = value.size();
             }
             else {
                 uintptr_t tmpblocks = 0xffffffffffffffff;
                 while (!m_buffer.try_pop(tmpblocks));
                 m_pBlockController.GetBlocks((AddressType*)tmpblocks + 1, blocks);
-                m_pBlockController.WriteBlocks((AddressType*)tmpblocks + 1, blocks, value, timeout, reqs);
+                m_pBlockController.WriteBlocks((AddressType*)tmpblocks + 1, blocks, value, timeout, reqs, p_write);
                 *((int64_t*)tmpblocks) = value.size();
 
                 m_pBlockController.ReleaseBlocks(postingSize + 1, (*postingSize + PageSize -1) >> PageSizeEx);
@@ -362,13 +374,13 @@ namespace SPTAG::SPANN
                         std::vector<Helper::AsyncReadRequest> *reqs,
                         std::function<bool(const void *val, const int size)> checksum) override
         {
-            return Merge(key, value, timeout, reqs, checksum, nullptr);
+            return Merge(key, value, timeout, reqs, checksum, nullptr, nullptr);
         }
 
         ErrorCode Merge(SizeType key, const std::string &value, const std::chrono::microseconds &timeout,
                         std::vector<Helper::AsyncReadRequest> *reqs,
                         std::function<bool(const void *val, const int size)> checksum,
-                        std::uint64_t* pages) override
+                        std::uint64_t* p_reads, std::uint64_t* p_write) override
         {
             if (key >= m_pBlockMapping.R()) {
                 SPTAGLIB_LOG(Helper::LogLevel::LL_Error, "Key range error: key: %d, mapping size: %d\n", key, m_pBlockMapping.R());
@@ -395,15 +407,14 @@ namespace SPTAG::SPANN
             if (sizeInPage != 0) {
                 std::string newValue;
                 AddressType readreq[] = { sizeInPage, *(postingSize + 1 + oldblocks) };
-                m_pBlockController.ReadBlocks(readreq, &newValue, timeout, reqs);
+                m_pBlockController.ReadBlocks(readreq, &newValue, timeout, reqs, p_reads);
                 newValue += value;
 
                 uintptr_t tmpblocks = 0xffffffffffffffff;
                 while (!m_buffer.try_pop(tmpblocks));
                 memcpy((AddressType*)tmpblocks, postingSize, sizeof(AddressType) * (oldblocks + 1));
                 m_pBlockController.GetBlocks((AddressType*)tmpblocks + 1 + oldblocks, allocblocks);
-                m_pBlockController.WriteBlocks((AddressType*)tmpblocks + 1 + oldblocks, allocblocks, newValue, timeout, reqs);
-                if (pages != nullptr) *pages += allocblocks;
+                m_pBlockController.WriteBlocks((AddressType*)tmpblocks + 1 + oldblocks, allocblocks, newValue, timeout, reqs, p_write);
                 *((int64_t*)tmpblocks) = newSize;
 
                 m_pBlockController.ReleaseBlocks(postingSize + 1 + oldblocks, 1);
@@ -414,8 +425,7 @@ namespace SPTAG::SPANN
             }
             else {
                 m_pBlockController.GetBlocks(postingSize + 1 + oldblocks, allocblocks);
-                m_pBlockController.WriteBlocks(postingSize + 1 + oldblocks, allocblocks, value, timeout, reqs);
-                if (pages != nullptr) *pages += allocblocks;
+                m_pBlockController.WriteBlocks(postingSize + 1 + oldblocks, allocblocks, value, timeout, reqs, p_write);
                 *postingSize = newSize;
             }
             return ErrorCode::Success;

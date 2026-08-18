@@ -85,14 +85,19 @@ namespace SPTAG {
 
         struct InsertStats
         {
-            InsertStats() : m_outEdges(0), m_inEdges(0), m_pagesTouched(0), m_evictions(0), m_headDists(0), m_pagesWritten(0) {}
+            InsertStats() : m_outEdges(0), m_inEdges(0), m_evictions(0), m_headDists(0),
+                            m_pagesRead(nullptr), m_pagesWrite(nullptr) {}
 
             int m_outEdges;
             int m_inEdges;
-            int m_pagesTouched;
             int m_evictions;
             int m_headDists;
-            int m_pagesWritten;
+            /// The calling operation's own page counters. Every read and write
+            /// this insert causes lands here, the splits and reassigns it
+            /// enqueues included: they carry these same slots and deposit from
+            /// whichever pool thread ran them. Null when nobody is measuring.
+            std::uint64_t* m_pagesRead;
+            std::uint64_t* m_pagesWrite;
         };
 
         struct IndexStats {
